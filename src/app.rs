@@ -2,22 +2,20 @@
 // #[derive(serde::Deserialize, serde::Serialize)]
 // #[serde(default)] // if we add new fields, give them default values when deserializing old state
 
-use crate::nodes::oscillator::OscParams;
+use crate::nodes::Node;
+use std::{sync::{Arc, Mutex}};
 
 pub struct Canvas {
     // Example stuff:
     label: String,
 
     // #[serde(skip)] // This how you opt-out of serialization of a field
-    params: &'static OscParams,
-    freq: u8,
-    vol: u8,
-    inputs: Vec<&mut dyn Node>,
+    inputs: Vec<Arc<Mutex<dyn Node>>>,
 }
 
 impl Canvas {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>, params: &'static OscParams) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, inputs: Vec<Arc<Mutex<dyn Node>>>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
@@ -30,9 +28,7 @@ impl Canvas {
         Self {
             // Example stuff:
             label: "Sin osc".to_owned(),
-            freq: 128,
-            vol: 128,
-            params: params,
+            inputs: inputs,
         }
     }
 }
@@ -71,23 +67,10 @@ impl eframe::App for Canvas {
             // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("eframe template");
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
-
-            let slider_stats = ui.add(egui::Slider::new(&mut self.freq, 0..=255).text("freq"));
-            if slider_stats.dragged() {
-                self.params.set_frequency(self.freq);
+            for param in self.inputs.iter() {
+                //let slider = ui.add(egui::Slider::new(&mut self.freq, 0..=255).text("freq"));
+                //self.param.set_frequency(self.freq);
             }
-            let slider_stats = ui.add(egui::Slider::new(&mut self.vol, 0..=255).text("volume"));
-            if slider_stats.dragged() {
-                self.params.set_volume(self.vol);
-            }
-            if ui.button("Increment").clicked() {
-                self.freq += 1;
-            }
-
             // ui.separator();
 
 

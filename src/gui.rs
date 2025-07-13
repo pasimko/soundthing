@@ -1,9 +1,11 @@
 use crate::nodes::oscillator::{Oscillator, OscParams};
 use crate::nodes::output::Output;
-use wasm_bindgen::{closure::Closure, JsCast, JsValue};
-use web_sys::{AudioContext, HtmlInputElement, HtmlLabelElement};
+use crate::nodes::Node;
+use wasm_bindgen::{closure::Closure};
+use web_sys::{AudioContext};
+use std::{sync::{Arc, Mutex}};
 
-pub fn create_gui(output: &mut Output, ctx: AudioContext) {
+pub fn create_gui(output: &'static Output, ctx: AudioContext) {
     use eframe::wasm_bindgen::JsCast as _;
 
     // Redirect `log` message to `console.log` and friends:
@@ -23,6 +25,10 @@ pub fn create_gui(output: &mut Output, ctx: AudioContext) {
     body.add_event_listener_with_callback("input", listener.as_ref().unchecked_ref())
         .unwrap();
 
+    let mut nodes : Vec<Arc<Mutex<dyn Node>>> = Vec::new();
+    let test_osc = Arc::new(Mutex::new(Oscillator::new()));
+    nodes.push(test_osc);
+
     wasm_bindgen_futures::spawn_local(async move {
         let canvas = document
             .get_element_by_id("the_canvas_id")
@@ -34,7 +40,7 @@ pub fn create_gui(output: &mut Output, ctx: AudioContext) {
             .start(
                 canvas,
                 web_options,
-                Box::new(move |cc| Ok(Box::new(crate::Canvas::new(cc, params)))),
+                Box::new(move |cc| Ok(Box::new(crate::Canvas::new(cc, nodes)))),
             )
             .await;
 

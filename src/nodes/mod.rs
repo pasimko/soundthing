@@ -3,4 +3,5 @@ pub mod output;
 
 pub trait Node {
     fn process(&mut self, output: &mut [f32]) -> bool;
+    fn display(&mut self) -> u32;
 }

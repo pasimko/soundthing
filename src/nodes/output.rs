@@ -1,18 +1,25 @@
 // Wasm audio processors can be implemented in Rust without knowing
 // about audio worklets.
+//
+//
+// So since the output node is in another thread, its process() will
+// call process on nodes that might have been created in another thread
+// which means that we need to use some inter-thread syncing
+// ie, the UI thread might change parameters, but we can't let that
+// happen if the audiocontext is trying to process it
 
-// use std::{clone, sync::atomic::{AtomicBool, AtomicU8, Ordering}};
+use std::{sync::{Arc, Mutex}};
 use super::Node;
 
 // Let's implement a simple sine oscillator with variable frequency and volume.
-pub struct Output<'a> {
-    inputs: Vec<&'a mut dyn Node>,
+pub struct Output {
+    inputs: Vec<Arc<Mutex<dyn Node>>>,
     muted: bool,
     volume: u8,
     accumulator: u32,
 }
 
-impl<'a> Output<'a> {
+impl Output {
     pub fn new() -> Self {
         Self {
             inputs: Vec::new(),
@@ -27,38 +34,20 @@ impl<'a> Output<'a> {
     pub fn set_volume(&mut self, volume: u8) {
         self.volume = volume;
     }
-    pub fn attach(&mut self, node: &'a mut dyn Node) {
+    pub fn attach(&mut self, node: Arc<Mutex<dyn Node>>) {
         self.inputs.push(node);
     }
-}
-
-impl Node for Output<'_> {
-    // Add all inputs together
-    // TODO divide also
-    fn process(&mut self, output: &mut [f32]) -> bool {
-        output.iter_mut().map(|_| 0);
-        for i in &mut self.inputs {
-            // eh, just copy in for now
-            let processed_input = i.process(output);
-            // output.iter_mut().for_each(f);
+    pub fn process(&self, output: &mut [f32]) -> bool {
+        for i in output.iter_mut() {
+            *i = 0.0;
         }
-        // for a in output {
-        //     *a = 0.0;
-        // }
+        for i in &self.inputs {
+            // eh, just copy in for now
+            let mut node = i.lock().unwrap();
+            // Need to make sure this is true DFS
+            // Some kind of 'mark' status in each node?
+            let processed_input = node.process(output);
+        }
         true
     }
 }
-
-// #[derive(Default)]
-// pub struct OutputParams {
-//     // Use atomics for parameters so they can be set in the main thread and
-//     // fetched by the audio process thread without further synchronization.
-//     inputs: AtoVec<Box<dyn Node>>,
-//     muted: AtomicBool,
-//     volume: AtomicU8,
-// }
-
-// I think I want Parameters to be held within
-// these structs
-// And then we can just provide getters/setters.
-// idk why that's not the model here

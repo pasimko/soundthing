@@ -37,6 +37,9 @@ impl Node for Oscillator {
         }
         true
     }
+    fn display(&mut self) -> u32 {
+        self.frequency.into()
+    }
 }
 
 #[derive(Default)]
