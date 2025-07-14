@@ -41,20 +41,3 @@ impl Node for Oscillator {
         self.frequency.into()
     }
 }
-
-#[derive(Default)]
-pub struct OscParams {
-    // Use atomics for parameters so they can be set in the main thread and
-    // fetched by the audio process thread without further synchronization.
-    frequency: AtomicU8,
-    volume: AtomicU8,
-}
-
-impl OscParams {
-    pub fn set_frequency(&self, frequency: u8) {
-        self.frequency.store(frequency, Ordering::Relaxed);
-    }
-    pub fn set_volume(&self, volume: u8) {
-        self.volume.store(volume, Ordering::Relaxed);
-    }
-}

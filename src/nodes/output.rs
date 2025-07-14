@@ -7,6 +7,8 @@
 // which means that we need to use some inter-thread syncing
 // ie, the UI thread might change parameters, but we can't let that
 // happen if the audiocontext is trying to process it
+//
+// So: all our shit needs to be thread-safe + mutex aware
 
 use std::{sync::{Arc, Mutex}};
 use super::Node;

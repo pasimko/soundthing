@@ -1,11 +1,9 @@
-use crate::nodes::oscillator::{Oscillator, OscParams};
+use crate::nodes::oscillator::{Oscillator};
 use crate::nodes::output::Output;
 use crate::nodes::Node;
-use wasm_bindgen::{closure::Closure};
-use web_sys::{AudioContext};
 use std::{sync::{Arc, Mutex}};
 
-pub fn create_gui(output: &'static Output, ctx: AudioContext) {
+pub fn create_gui(output: Arc<Mutex<Output>>) {
     use eframe::wasm_bindgen::JsCast as _;
 
     // Redirect `log` message to `console.log` and friends:
@@ -15,19 +13,11 @@ pub fn create_gui(output: &'static Output, ctx: AudioContext) {
 
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
-    let body = document.body().unwrap();
-
-    let listener = Closure::<dyn FnMut(_)>::new(move |_: web_sys::Event| {
-        drop(ctx.resume().unwrap());
-    })
-    .into_js_value();
-
-    body.add_event_listener_with_callback("input", listener.as_ref().unchecked_ref())
-        .unwrap();
 
     let mut nodes : Vec<Arc<Mutex<dyn Node>>> = Vec::new();
     let test_osc = Arc::new(Mutex::new(Oscillator::new()));
-    nodes.push(test_osc);
+    nodes.push(test_osc.clone());
+    output.lock().unwrap().attach(test_osc.clone());
 
     wasm_bindgen_futures::spawn_local(async move {
         let canvas = document

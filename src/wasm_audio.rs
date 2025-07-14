@@ -3,14 +3,18 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AudioContext, AudioWorkletNode, AudioWorkletNodeOptions};
+use std::sync::{Arc, Mutex};
+use crate::nodes::output::Output;
 
+// TODO idk if this "tuple struct" thing is necessary
+// or really why it's like this
 #[wasm_bindgen]
-pub struct WasmAudioProcessor(Box<dyn FnMut(&mut [f32]) -> bool>);
+pub struct WasmAudioProcessor(Arc<Mutex<Output>>);
 
 #[wasm_bindgen]
 impl WasmAudioProcessor {
     pub fn process(&mut self, buf: &mut [f32]) -> bool {
-        self.0(buf)
+        self.0.lock().unwrap().process(buf)
     }
     pub fn pack(self) -> usize {
         Box::into_raw(Box::new(self)) as usize
@@ -24,12 +28,12 @@ impl WasmAudioProcessor {
 // whose samples should be played directly. Ideally, call wasm_audio based on
 // user interaction. Otherwise, resume the context on user interaction, so
 // playback starts reliably on all browsers.
-pub async fn wasm_audio(
-    process: Box<dyn FnMut(&mut [f32]) -> bool>,
-) -> Result<AudioContext, JsValue> {
+// takes an Output node
+// needs to be able to grab a lock when process is called
+pub async fn wasm_audio(output: Arc<Mutex<Output>>) -> Result<AudioContext, JsValue> {
     let ctx = AudioContext::new()?;
     prepare_wasm_audio(&ctx).await?;
-    let node = wasm_audio_node(&ctx, process)?;
+    let node = wasm_audio_node(&ctx, output)?;
     node.connect_with_audio_node(&ctx.destination())?;
     Ok(ctx)
 }
@@ -39,13 +43,13 @@ pub async fn wasm_audio(
 // this function.
 pub fn wasm_audio_node(
     ctx: &AudioContext,
-    process: Box<dyn FnMut(&mut [f32]) -> bool>,
+    output: Arc<Mutex<Output>>,
 ) -> Result<AudioWorkletNode, JsValue> {
     let options = AudioWorkletNodeOptions::new();
     options.set_processor_options(Some(&js_sys::Array::of3(
         &wasm_bindgen::module(),
         &wasm_bindgen::memory(),
-        &WasmAudioProcessor(process).pack().into(),
+        &WasmAudioProcessor(output).pack().into(),
     )));
     AudioWorkletNode::new_with_options(ctx, "WasmProcessor", &options)
 }

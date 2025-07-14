@@ -9,19 +9,22 @@ use nodes::output::{Output};
 use wasm_audio::wasm_audio;
 use wasm_bindgen::prelude::*;
 pub use app::Canvas;
+use std::{sync::{Arc, Mutex}};
 
 #[wasm_bindgen]
 pub async fn web_main() {
-    // On the application level, audio worklet internals are abstracted by wasm_audio:
-    // let out_params: &'static OutputParams = Box::leak(Box::default());
-    // idk if rc is gonna work
-    // let osc = Rc::new(RefCell::new(Oscillator::new()));
-    let out: &'static Output = Box::leak(Box::new(Output::new()));
-    // out.attach(&mut *osc.borrow_mut());
-    let ctx = wasm_audio(Box::new(move |buf| {
-        out.process(buf)
-    }))
-    .await
-    .unwrap();
-    create_gui(out, ctx);
+    let out = Arc::new(Mutex::new(Output::new()));
+    let ctx = wasm_audio(out.clone()).await.unwrap();
+    create_gui(out);
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let body = document.body().unwrap();
+
+    let listener = Closure::<dyn FnMut(_)>::new(move |_: web_sys::Event| {
+        drop(ctx.resume().unwrap());
+    })
+    .into_js_value();
+
+    body.add_event_listener_with_callback("click", listener.as_ref().unchecked_ref())
+        .unwrap();
 }

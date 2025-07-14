@@ -6,9 +6,6 @@ use crate::nodes::Node;
 use std::{sync::{Arc, Mutex}};
 
 pub struct Canvas {
-    // Example stuff:
-    label: String,
-
     // #[serde(skip)] // This how you opt-out of serialization of a field
     inputs: Vec<Arc<Mutex<dyn Node>>>,
 }
@@ -16,18 +13,7 @@ pub struct Canvas {
 impl Canvas {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>, inputs: Vec<Arc<Mutex<dyn Node>>>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        // if let Some(storage) = cc.storage {
-        //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        // }
-
         Self {
-            // Example stuff:
-            label: "Sin osc".to_owned(),
             inputs: inputs,
         }
     }
