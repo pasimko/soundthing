@@ -1,4 +1,15 @@
-# wasm-audio-worklet
+# audio graph thing
+
+Puredata inspired web daw.
+
+## TODO
+* ring buffer to reduce clicking?
+* better mutex handling to fix flashing UI?
+* read docs to figure out what process should do when mutex fails
+    * currently assuming that I just return false, but i need to check
+
+
+## Based on wasm-audio-worklet
 
 [View documentation for this example online][dox] or [View compiled example
 online][compiled]
