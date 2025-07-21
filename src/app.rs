@@ -45,8 +45,13 @@ impl eframe::App for Canvas {
             ui.heading("eframe template");
 
             let mut inputs : Vec<u32> = Vec::new();
+            // Choose to flash UI when lock fails
+            // TODO fix that behavior later
             for audio_node in self.inputs.iter() {
-                audio_node.lock().unwrap().display(&ctx);
+                let mut lock = audio_node.try_lock();
+                if let Ok(ref mut node) = lock {
+                    node.build_controls(&ctx);
+                }
             }
             // ui.separator();
 

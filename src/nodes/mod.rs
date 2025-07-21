@@ -6,5 +6,5 @@ pub trait Node {
 }
 
 pub trait NodeUi {
-    fn display(&mut self, ctx: &egui::Context);
+    fn build_controls(&mut self, ctx: &egui::Context);
 }
