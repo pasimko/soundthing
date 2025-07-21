@@ -46,7 +46,7 @@ impl Output {
         for i in &self.inputs {
             // eh, just copy in for now
             let _ = match i.try_lock() {
-                Ok(mut node) => node.process(buf),
+                Ok(ref mut node) => node.process(buf),
                 Err(_) => false,
             };
             // let mut node = i.try_lock().unwrap();
