@@ -3,5 +3,8 @@ pub mod output;
 
 pub trait Node {
     fn process(&mut self, output: &mut [f32]) -> bool;
-    fn display(&mut self) -> u32;
+}
+
+pub trait NodeUi {
+    fn display(&mut self, ctx: &egui::Context);
 }

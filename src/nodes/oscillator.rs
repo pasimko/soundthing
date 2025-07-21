@@ -1,8 +1,8 @@
 // Wasm audio processors can be implemented in Rust without knowing
 // about audio worklets.
 
-use std::sync::atomic::{AtomicU8, Ordering};
 use super::Node;
+use super::NodeUi;
 
 // Let's implement a simple sine oscillator with variable frequency and volume.
 pub struct Oscillator {
@@ -37,7 +37,13 @@ impl Node for Oscillator {
         }
         true
     }
-    fn display(&mut self) -> u32 {
-        self.frequency.into()
+}
+
+impl NodeUi for Oscillator {
+    fn display(&mut self, ctx: &egui::Context) {
+        egui::Window::new("Sine Osc").show(ctx, |ui| {
+            ui.add(egui::Slider::new(&mut self.frequency, 0..=255).text("frequency"));
+            ui.add(egui::Slider::new(&mut self.volume, 0..=255).text("volume"));
+        });
     }
 }

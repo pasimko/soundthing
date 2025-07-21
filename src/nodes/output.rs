@@ -39,16 +39,20 @@ impl Output {
     pub fn attach(&mut self, node: Arc<Mutex<dyn Node>>) {
         self.inputs.push(node);
     }
-    pub fn process(&self, output: &mut [f32]) -> bool {
-        for i in output.iter_mut() {
-            *i = 0.0;
-        }
+    pub fn process(&self, buf: &mut [f32]) -> bool {
+        // for i in buf.iter_mut() {
+        //     *i = 0.0;
+        // }
         for i in &self.inputs {
             // eh, just copy in for now
-            let mut node = i.lock().unwrap();
+            let _ = match i.try_lock() {
+                Ok(mut node) => node.process(buf),
+                Err(_) => false,
+            };
+            // let mut node = i.try_lock().unwrap();
             // Need to make sure this is true DFS
             // Some kind of 'mark' status in each node?
-            let processed_input = node.process(output);
+            // let processed_input = node.process(output);
         }
         true
     }

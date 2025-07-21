@@ -1,6 +1,6 @@
 use crate::nodes::oscillator::{Oscillator};
 use crate::nodes::output::Output;
-use crate::nodes::Node;
+use crate::nodes::NodeUi;
 use std::{sync::{Arc, Mutex}};
 
 pub fn create_gui(output: Arc<Mutex<Output>>) {
@@ -14,7 +14,7 @@ pub fn create_gui(output: Arc<Mutex<Output>>) {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
 
-    let mut nodes : Vec<Arc<Mutex<dyn Node>>> = Vec::new();
+    let mut nodes : Vec<Arc<Mutex<dyn NodeUi>>> = Vec::new();
     let test_osc = Arc::new(Mutex::new(Oscillator::new()));
     nodes.push(test_osc.clone());
     output.lock().unwrap().attach(test_osc.clone());
@@ -30,7 +30,7 @@ pub fn create_gui(output: Arc<Mutex<Output>>) {
             .start(
                 canvas,
                 web_options,
-                Box::new(move |cc| Ok(Box::new(crate::Canvas::new(cc, nodes)))),
+                Box::new(|_| Ok(Box::new(crate::Canvas::new(nodes)))),
             )
             .await;
 

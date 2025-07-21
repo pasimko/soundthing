@@ -14,7 +14,15 @@ pub struct WasmAudioProcessor(Arc<Mutex<Output>>);
 #[wasm_bindgen]
 impl WasmAudioProcessor {
     pub fn process(&mut self, buf: &mut [f32]) -> bool {
-        self.0.lock().unwrap().process(buf)
+        // We can't lock in wasm
+        // idk what alternative is...
+        // i need to handle the case where it's not ready
+        // I guess I should try to lock,
+        // the case where 
+        match self.0.try_lock() {
+            Ok(node) => node.process(buf),
+            Err(_) => false,
+        }
     }
     pub fn pack(self) -> usize {
         Box::into_raw(Box::new(self)) as usize

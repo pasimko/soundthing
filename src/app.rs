@@ -1,30 +1,21 @@
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
-// #[derive(serde::Deserialize, serde::Serialize)]
-// #[serde(default)] // if we add new fields, give them default values when deserializing old state
-
-use crate::nodes::Node;
+use crate::nodes::NodeUi;
 use std::{sync::{Arc, Mutex}};
 
 pub struct Canvas {
     // #[serde(skip)] // This how you opt-out of serialization of a field
-    inputs: Vec<Arc<Mutex<dyn Node>>>,
+    inputs: Vec<Arc<Mutex<dyn NodeUi>>>,
 }
 
 impl Canvas {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>, inputs: Vec<Arc<Mutex<dyn Node>>>) -> Self {
+    pub fn new(inputs: Vec<Arc<Mutex<dyn NodeUi>>>) -> Self {
         Self {
-            inputs: inputs,
+            inputs,
         }
     }
 }
 
 impl eframe::App for Canvas {
-    /// Called by the frame work to save state before shutdown.
-    // fn save(&mut self, storage: &mut dyn eframe::Storage) {
-    //     eframe::set_value(storage, eframe::APP_KEY, self);
-    // }
-
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
@@ -53,9 +44,9 @@ impl eframe::App for Canvas {
             // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("eframe template");
 
-            for param in self.inputs.iter() {
-                //let slider = ui.add(egui::Slider::new(&mut self.freq, 0..=255).text("freq"));
-                //self.param.set_frequency(self.freq);
+            let mut inputs : Vec<u32> = Vec::new();
+            for audio_node in self.inputs.iter() {
+                audio_node.lock().unwrap().display(&ctx);
             }
             // ui.separator();
 
