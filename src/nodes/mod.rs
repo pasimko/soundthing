@@ -1,4 +1,4 @@
-pub mod oscillator;
+pub mod oscillators;
 pub mod output;
 
 pub trait Node {

@@ -10,7 +10,7 @@
 //
 // So: all our shit needs to be thread-safe + mutex aware
 
-use std::{sync::{Arc, Mutex}};
+use std::{sync::{Arc, Mutex}, iter::zip};
 use super::Node;
 
 // Let's implement a simple sine oscillator with variable frequency and volume.
@@ -40,19 +40,26 @@ impl Output {
         self.inputs.push(node);
     }
     pub fn process(&self, buf: &mut [f32]) -> bool {
-        // for i in buf.iter_mut() {
-        //     *i = 0.0;
-        // }
-        for i in &self.inputs {
-            // eh, just copy in for now
-            let _ = match i.try_lock() {
-                Ok(ref mut node) => node.process(buf),
+        for i in buf.iter_mut() {
+            *i = 0.0;
+        }
+        // idk how to tell how big buf is :(
+        let mut test : Vec<f32> = Vec::new();
+        test.extend_from_slice(buf);
+        for (node, i) in zip(&self.inputs, 0..self.inputs.len()) {
+            let _ = match node.try_lock() {
+                Ok(ref mut node) => node.process(test.as_mut_slice()),
                 Err(_) => false,
             };
-            // let mut node = i.try_lock().unwrap();
+            // TODO is this slow?
+            // and it feels like C
+            for i in 0..buf.len() {
+                buf[i] += test[i];
+            }
             // Need to make sure this is true DFS
             // Some kind of 'mark' status in each node?
-            // let processed_input = node.process(output);
+            // (if the same node feeds multiple nodes, it'll get process called twice for the same
+            // sample)
         }
         true
     }
