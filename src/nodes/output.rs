@@ -48,7 +48,7 @@ impl Output {
         test.extend_from_slice(buf);
         for (node, i) in zip(&self.inputs, 0..self.inputs.len()) {
             let _ = match node.try_lock() {
-                Ok(ref mut node) => node.process(test.as_mut_slice()),
+                Ok(ref mut node) => node.process(self.accumulator, test.as_mut_slice()),
                 Err(_) => false,
             };
             // TODO is this slow?

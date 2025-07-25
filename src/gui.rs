@@ -1,4 +1,4 @@
-use crate::nodes::oscillators::{SineOsc, SawtoothOsc};
+use crate::nodes::oscillators::{SineOsc, SawtoothOsc, SquareOsc};
 use crate::nodes::output::Output;
 use crate::nodes::NodeUi;
 use std::{sync::{Arc, Mutex}};
@@ -24,7 +24,7 @@ pub fn create_gui(output: Arc<Mutex<Output>>) {
     nodes.push(sin_osc_2.clone());
     output.lock().unwrap().attach(sin_osc_2.clone());
 
-    let sin_osc_3 = Arc::new(Mutex::new(SineOsc::new("c")));
+    let sin_osc_3 = Arc::new(Mutex::new(SquareOsc::new()));
     nodes.push(sin_osc_3.clone());
     output.lock().unwrap().attach(sin_osc_3.clone());
 
@@ -32,9 +32,9 @@ pub fn create_gui(output: Arc<Mutex<Output>>) {
     // nodes.push(sin_osc_3.clone());
     // output.lock().unwrap().attach(sin_osc_3.clone());
 
-    // let test_osc_2 = Arc::new(Mutex::new(SawtoothOsc::new()));
-    // nodes.push(test_osc_2.clone());
-    // output.lock().unwrap().attach(test_osc_2.clone());
+    let test_osc_2 = Arc::new(Mutex::new(SawtoothOsc::new()));
+    nodes.push(test_osc_2.clone());
+    output.lock().unwrap().attach(test_osc_2.clone());
 
     wasm_bindgen_futures::spawn_local(async move {
         let canvas = document
