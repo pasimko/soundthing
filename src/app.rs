@@ -1,16 +1,16 @@
 use crate::nodes::NodeUi;
-use std::{sync::{Arc, Mutex}};
+use crate::nodes::output::Output;
+use std::sync::Arc;
 
 pub struct Canvas {
-    // #[serde(skip)] // This how you opt-out of serialization of a field
-    inputs: Vec<Arc<Mutex<dyn NodeUi>>>,
+    output_node: Arc<Output>,
 }
 
 impl Canvas {
     /// Called once before the first frame.
-    pub fn new(inputs: Vec<Arc<Mutex<dyn NodeUi>>>) -> Self {
+    pub fn new(output: Arc<Output>) -> Self {
         Self {
-            inputs,
+            output_node: output,
         }
     }
 }
@@ -41,17 +41,17 @@ impl eframe::App for Canvas {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("eframe template");
 
-            let mut inputs : Vec<u32> = Vec::new();
+            // let mut inputs : Vec<u32> = Vec::new();
             // Choose to flash UI when lock fails
             // TODO fix that behavior later
-            for audio_node in self.inputs.iter() {
-                let mut lock = audio_node.try_lock();
-                if let Ok(ref mut node) = lock {
-                    node.build_controls(&ctx);
-                }
+            // TODO move to message passing?
+            for audio_node in self.output_node.get_inputs().iter() {
+                // let mut lock = audio_node.try_lock();
+                // if let Ok(ref mut node) = lock {
+                audio_node.build_controls(&ctx);
+                // 
             }
             // ui.separator();
 

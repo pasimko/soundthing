@@ -8,14 +8,29 @@
 // ie, the UI thread might change parameters, but we can't let that
 // happen if the audiocontext is trying to process it
 //
-// So: all our shit needs to be thread-safe + mutex aware
+// Hmmm.
+// I really need to just bite the bullet and use a ringbuffer...
+// 
+// Output: Owned by lib, has a thread where it fills ringbuffer
+// is rwlock ever the right move?
+// (maybe parameters to all the Nodes should be atomic?)
+//
 
-use std::{sync::{Arc, Mutex}, iter::zip};
+// ugh
+//
+
+use std::cell::RefCell;
+use std::sync::RwLock;
+use std::sync::Arc;
 use super::Node;
 
-// Let's implement a simple sine oscillator with variable frequency and volume.
+// These need to be mutable
+// they're never mutated somewhere else tho...
+// hmmm
+// how can i avoid a mutex?
+// need a way to give readable
 pub struct Output {
-    inputs: Vec<Arc<Mutex<dyn Node>>>,
+    inputs: Vec<Arc<dyn Node>>,
     muted: bool,
     volume: u8,
     accumulator: u32,
@@ -36,21 +51,23 @@ impl Output {
     pub fn set_volume(&mut self, volume: u8) {
         self.volume = volume;
     }
-    pub fn attach(&mut self, node: Arc<Mutex<dyn Node>>) {
-        self.inputs.push(node);
+    pub fn add_node(&mut self, node: Arc<dyn Node>) {
+        self.inputs.push(node.clone());
+    }
+    // need to make sure this doesn't change ownership...
+    pub fn get_inputs(&self) -> &[Arc<dyn Node>] {
+        self.inputs.as_slice()
     }
     pub fn process(&self, buf: &mut [f32]) -> bool {
         for i in buf.iter_mut() {
             *i = 0.0;
         }
         // idk how to tell how big buf is :(
+        // nvm, it's a slice. buf.len() should work
         let mut test : Vec<f32> = Vec::new();
         test.extend_from_slice(buf);
-        for (node, i) in zip(&self.inputs, 0..self.inputs.len()) {
-            let _ = match node.try_lock() {
-                Ok(ref mut node) => node.process(self.accumulator, test.as_mut_slice()),
-                Err(_) => false,
-            };
+        for node in self.inputs {
+            node.process(self.accumulator, test.as_mut_slice());
             // TODO is this slow?
             // and it feels like C
             for i in 0..buf.len() {

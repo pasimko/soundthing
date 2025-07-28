@@ -1,4 +1,5 @@
-mod dependent_module;
+another reference,
+which excludes a writable 
 mod gui;
 mod nodes;
 mod wasm_audio;

@@ -14,17 +14,6 @@ pub struct WasmAudioProcessor(Arc<Mutex<Output>>);
 #[wasm_bindgen]
 impl WasmAudioProcessor {
     pub fn process(&mut self, buf: &mut [f32]) -> bool {
-        // We can't lock in wasm
-        // idk what alternative is...
-        // i need to handle the case where it's not ready
-        // I guess I should try to lock,
-        // the case where 
-        // let mut lock = self.0.try_lock();
-        // if let Ok(ref mut mutex) = lock {
-        //     **mutex = 10;
-        // } else {
-        //     println!("try_lock failed");
-        // }
         match self.0.try_lock() {
             Ok(ref mut node) => node.process(buf),
             Err(_) => false,
