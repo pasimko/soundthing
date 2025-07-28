@@ -3,21 +3,18 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AudioContext, AudioWorkletNode, AudioWorkletNodeOptions};
-use std::sync::{Arc, Mutex};
-use crate::nodes::output::Output;
+use ringbuf::{HeapCons, consumer::Consumer};
 
 // TODO idk if this "tuple struct" thing is necessary
 // or really why it's like this
 #[wasm_bindgen]
-pub struct WasmAudioProcessor(Arc<Mutex<Output>>);
+pub struct WasmAudioProcessor(HeapCons<f32>);
 
 #[wasm_bindgen]
 impl WasmAudioProcessor {
     pub fn process(&mut self, buf: &mut [f32]) -> bool {
-        match self.0.try_lock() {
-            Ok(ref mut node) => node.process(buf),
-            Err(_) => false,
-        }
+        let popped_count = self.0.pop_slice(buf);
+        popped_count == buf.len()
     }
     pub fn pack(self) -> usize {
         Box::into_raw(Box::new(self)) as usize
@@ -33,7 +30,7 @@ impl WasmAudioProcessor {
 // playback starts reliably on all browsers.
 // takes an Output node
 // needs to be able to grab a lock when process is called
-pub async fn wasm_audio(output: Arc<Mutex<Output>>) -> Result<AudioContext, JsValue> {
+pub async fn wasm_audio(output: HeapCons<f32>) -> Result<AudioContext, JsValue> {
     let ctx = AudioContext::new()?;
     prepare_wasm_audio(&ctx).await?;
     let node = wasm_audio_node(&ctx, output)?;
@@ -46,7 +43,7 @@ pub async fn wasm_audio(output: Arc<Mutex<Output>>) -> Result<AudioContext, JsVa
 // this function.
 pub fn wasm_audio_node(
     ctx: &AudioContext,
-    output: Arc<Mutex<Output>>,
+    output: HeapCons<f32>,
 ) -> Result<AudioWorkletNode, JsValue> {
     let options = AudioWorkletNodeOptions::new();
     options.set_processor_options(Some(&js_sys::Array::of3(

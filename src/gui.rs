@@ -1,11 +1,8 @@
 use crate::nodes::oscillators::{SineOsc};
 use crate::nodes::output::Output;
-use crate::nodes::NodeUi;
-use std::{sync::{Arc, Mutex}};
+use crate::nodes::Node;
 
-// to be fair, the GUI isn't a great place for inputs to be owned
-
-pub fn create_gui(output: Arc<Mutex<Output>>) {
+pub fn create_gui(output: &mut Output) {
     use eframe::wasm_bindgen::JsCast as _;
 
     // Redirect `log` message to `console.log` and friends:
@@ -16,12 +13,15 @@ pub fn create_gui(output: Arc<Mutex<Output>>) {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
 
-    let mut nodes : Vec<Arc<dyn NodeUi>> = Vec::new();
+    let mut nodes : Vec<Box<dyn Node>> = Vec::new();
 
-    let sin_osc_1 = Arc::new(SineOsc::new("a"));
+    let (so1, so1_output) = match SineOsc::new("a") {
+        (node, buf) => (Box::new(node), buf),
+    };
     // TODO fix this
     // nodes.push(sin_osc_1);
-    output.lock().unwrap().add_node(sin_osc_1);
+    output.add_input(so1_output);
+    nodes.push(so1);
 
     wasm_bindgen_futures::spawn_local(async move {
         let canvas = document
@@ -34,7 +34,7 @@ pub fn create_gui(output: Arc<Mutex<Output>>) {
             .start(
                 canvas,
                 web_options,
-                Box::new(|_| Ok(Box::new(crate::Canvas::new(output.lock().unwrap().get_inputs())))),
+                Box::new(move |_| Ok(Box::new(crate::Canvas::new(nodes)))),
             )
             .await;
 

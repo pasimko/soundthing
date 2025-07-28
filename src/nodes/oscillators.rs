@@ -1,48 +1,52 @@
 // Wasm audio processors can be implemented in Rust without knowing
 // about audio worklets.
 
-use super::Node;
-use super::NodeUi;
+use super::{Node, BUFSIZE, SAMPLESIZE};
 use std::f32::consts::PI;
-use std::sync::mpsc::channel;
-use std::sync::mpsc::Sender;
-use std::sync::mpsc::Receiver;
+// use std::sync::mpsc::channel;
+// use std::sync::mpsc::Sender;
+// use std::sync::mpsc::Receiver;
+use ringbuf::{HeapRb, HeapProd, HeapCons, traits::*};
 
 pub struct SineOsc {
     frequency: u32,
     volume: u8,
     phase: f32,
     name: String,
-    msg_channel: (Sender<u32>, Receiver<u32>),
+    // Need to figure out how we call split
+    writer: HeapProd<f32>,
 }
 
 impl SineOsc {
-    pub fn new(n: &str) -> Self {
-        Self {
+    pub fn new(n: &str) -> (Self, HeapCons<f32>) {
+        let ring_buffer = HeapRb::<f32>::new(BUFSIZE);
+        let (writer, reader) = ring_buffer.split();
+        (Self {
             frequency: 128,
             volume: 128,
             phase: 0.,
-            name: n.to_owned(),
-            msg_channel: channel(),
-        }
+            name: n.to_owned(), // egui/eframe has a glitch??
+            writer,
+        }, reader)
     }
 }
 // TODO i think this is slightly inaccurate - I can hear < 20hz
 // TODO actually check sample rate
 impl Node for SineOsc {
-    fn process(&mut self, _phase: u32, output: &mut [f32]) -> bool {
-        for a in output {
-            let frequency = match self.msg_channel.1.try_recv() {
-                Ok(val) => val,
-                _ => self.frequency,
-            };
-            // let frequency = self.frequency;
+    fn process(&mut self) {
+        let mut buf = [0.; SAMPLESIZE];
+        for i in 0..SAMPLESIZE {
+            // let frequency = match self.msg_channel.1.try_recv() {
+            //     Ok(val) => val,
+            //     _ => self.frequency,
+            // };
+            let frequency = self.frequency;
             let volume = self.volume;
             self.phase += 2. * PI / (48_000. / frequency as f32);
             self.phase = self.phase.rem_euclid(2. * PI);
-            *a = (self.phase).sin() * (volume as f32 / 100.);
+            buf[i] = (self.phase).sin() * (volume as f32 / 100.);
         }
-        true
+        self.writer.push_slice(&buf); // TODO this can desync phase
     }
     fn build_controls(&self, ctx: &egui::Context) {
         egui::Window::new(self.name.as_str()).show(ctx, |ui| {
@@ -50,7 +54,7 @@ impl Node for SineOsc {
             let mut new_vol = self.volume;
             ui.add(egui::Slider::new(&mut new_freq, 20..=2000).text("frequency").logarithmic(true));
             ui.add(egui::Slider::new(&mut new_vol, 0..=128).text("volume"));
-            self.msg_channel.0.send(new_freq).unwrap();
+            // self.msg_channel.0.send(new_freq).unwrap();
         });
     }
 }

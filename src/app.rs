@@ -1,16 +1,15 @@
-use crate::nodes::NodeUi;
-use crate::nodes::output::Output;
+use crate::nodes::Node;
 use std::sync::Arc;
 
 pub struct Canvas {
-    output_node: Arc<Output>,
+    nodes: Vec<Box<dyn Node>>,
 }
 
 impl Canvas {
     /// Called once before the first frame.
-    pub fn new(output: Arc<Output>) -> Self {
+    pub fn new(nodes: Vec<Box<dyn Node>>) -> Self {
         Self {
-            output_node: output,
+            nodes,
         }
     }
 }
@@ -47,11 +46,10 @@ impl eframe::App for Canvas {
             // Choose to flash UI when lock fails
             // TODO fix that behavior later
             // TODO move to message passing?
-            for audio_node in self.output_node.get_inputs().iter() {
+            for audio_node in &self.nodes {
                 // let mut lock = audio_node.try_lock();
                 // if let Ok(ref mut node) = lock {
                 audio_node.build_controls(&ctx);
-                // 
             }
             // ui.separator();
 

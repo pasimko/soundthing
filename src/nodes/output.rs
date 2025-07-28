@@ -1,7 +1,6 @@
 // Wasm audio processors can be implemented in Rust without knowing
 // about audio worklets.
 //
-//
 // So since the output node is in another thread, its process() will
 // call process on nodes that might have been created in another thread
 // which means that we need to use some inter-thread syncing
@@ -14,35 +13,27 @@
 // Output: Owned by lib, has a thread where it fills ringbuffer
 // is rwlock ever the right move?
 // (maybe parameters to all the Nodes should be atomic?)
-//
 
-// ugh
-//
-
-use std::cell::RefCell;
-use std::sync::RwLock;
 use std::sync::Arc;
 use super::Node;
+use ringbuf::{HeapProd, HeapCons, traits::*};
 
-// These need to be mutable
-// they're never mutated somewhere else tho...
-// hmmm
-// how can i avoid a mutex?
-// need a way to give readable
 pub struct Output {
-    inputs: Vec<Arc<dyn Node>>,
+    inputs: Vec<HeapCons<f32>>,
     muted: bool,
     volume: u8,
     accumulator: u32,
+    output: HeapProd<f32>,
 }
 
 impl Output {
-    pub fn new() -> Self {
+    pub fn new(output: HeapProd<f32>) -> Self {
         Self {
             inputs: Vec::new(),
             volume: 255,
             muted: false,
             accumulator: 0,
+            output,
         }
     }
     pub fn toggle_muted(&mut self) {
@@ -51,33 +42,14 @@ impl Output {
     pub fn set_volume(&mut self, volume: u8) {
         self.volume = volume;
     }
-    pub fn add_node(&mut self, node: Arc<dyn Node>) {
-        self.inputs.push(node.clone());
+    pub fn add_input(&mut self, node_output: HeapCons<f32>) {
+        self.inputs.push(node_output);
     }
-    // need to make sure this doesn't change ownership...
-    pub fn get_inputs(&self) -> &[Arc<dyn Node>] {
-        self.inputs.as_slice()
-    }
-    pub fn process(&self, buf: &mut [f32]) -> bool {
-        for i in buf.iter_mut() {
-            *i = 0.0;
+    pub fn process(&mut self) -> bool {
+
+        match self.output.try_push(1.) {
+            Ok(_) => true,
+            _ => false
         }
-        // idk how to tell how big buf is :(
-        // nvm, it's a slice. buf.len() should work
-        let mut test : Vec<f32> = Vec::new();
-        test.extend_from_slice(buf);
-        for node in self.inputs {
-            node.process(self.accumulator, test.as_mut_slice());
-            // TODO is this slow?
-            // and it feels like C
-            for i in 0..buf.len() {
-                buf[i] += test[i];
-            }
-            // Need to make sure this is true DFS
-            // Some kind of 'mark' status in each node?
-            // (if the same node feeds multiple nodes, it'll get process called twice for the same
-            // sample)
-        }
-        true
     }
 }
