@@ -13,18 +13,6 @@ use ringbuf::{traits::*, HeapRb};
 
 #[wasm_bindgen]
 pub async fn web_main() {
-    // Output is mutable in this thread, maybe?
-    // But nothing else can mutate it;
-    //
-    // The AudioContext can call process, but that won't
-    // take a mutable reference: it will get a consumer
-    // ring buffer
-    //
-    // Anything else never gets a reference to our output either
-    // they get message passing interfaces, but that's it.
-    //
-    //
-    // yaaay finally getting ring buffer going
     let output_rb = HeapRb::<f32>::new(1024);
     let (mut prod, mut cons) = output_rb.split();
 
@@ -42,5 +30,5 @@ pub async fn web_main() {
     .into_js_value();
     body.add_event_listener_with_callback("click", listener.as_ref().unchecked_ref())
         .unwrap();
-    // maybe now a loop that 
+    // I would run something like loop { output.process() } here if I could
 }

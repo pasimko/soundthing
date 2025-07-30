@@ -14,9 +14,9 @@
 // is rwlock ever the right move?
 // (maybe parameters to all the Nodes should be atomic?)
 
-use std::sync::Arc;
-use super::Node;
+use super::SAMPLESIZE;
 use ringbuf::{HeapProd, HeapCons, traits::*};
+use std::iter::zip;
 
 pub struct Output {
     inputs: Vec<HeapCons<f32>>,
@@ -45,11 +45,15 @@ impl Output {
     pub fn add_input(&mut self, node_output: HeapCons<f32>) {
         self.inputs.push(node_output);
     }
-    pub fn process(&mut self) -> bool {
-
-        match self.output.try_push(1.) {
-            Ok(_) => true,
-            _ => false
+    pub fn process(&mut self) {
+        let mut buf = [0. ; SAMPLESIZE];
+        for node in &mut self.inputs {
+            let mut cur_buf = [0. ; SAMPLESIZE];
+            node.pop_slice(&mut cur_buf);
+            for (a, b) in zip(buf.iter_mut(), cur_buf.iter()) {
+                *a += b;
+            }
         }
+        self.output.push_slice(&buf);
     }
 }

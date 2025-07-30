@@ -1,6 +1,7 @@
+use crate::Canvas;
+use crate::nodes::Node;
 use crate::nodes::oscillators::{SineOsc};
 use crate::nodes::output::Output;
-use crate::nodes::Node;
 
 pub fn create_gui(output: &mut Output) {
     use eframe::wasm_bindgen::JsCast as _;
@@ -15,12 +16,10 @@ pub fn create_gui(output: &mut Output) {
 
     let mut nodes : Vec<Box<dyn Node>> = Vec::new();
 
-    let (so1, so1_output) = match SineOsc::new("a") {
-        (node, buf) => (Box::new(node), buf),
-    };
-    // TODO fix this
-    // nodes.push(sin_osc_1);
+    let (node, buf) = SineOsc::new("a");
+    let (so1, so1_output) = (Box::new(node), buf);
     output.add_input(so1_output);
+    // clearly a mistake
     nodes.push(so1);
 
     wasm_bindgen_futures::spawn_local(async move {
@@ -34,7 +33,9 @@ pub fn create_gui(output: &mut Output) {
             .start(
                 canvas,
                 web_options,
-                Box::new(move |_| Ok(Box::new(crate::Canvas::new(nodes)))),
+                Box::new(move |_| {
+                    Ok(Box::new(Canvas::new(nodes)))
+                }),
             )
             .await;
 

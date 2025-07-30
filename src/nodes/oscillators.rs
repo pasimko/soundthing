@@ -35,7 +35,7 @@ impl SineOsc {
 impl Node for SineOsc {
     fn process(&mut self) {
         let mut buf = [0.; SAMPLESIZE];
-        for i in 0..SAMPLESIZE {
+        for sample in buf.iter_mut() {
             // let frequency = match self.msg_channel.1.try_recv() {
             //     Ok(val) => val,
             //     _ => self.frequency,
@@ -44,7 +44,7 @@ impl Node for SineOsc {
             let volume = self.volume;
             self.phase += 2. * PI / (48_000. / frequency as f32);
             self.phase = self.phase.rem_euclid(2. * PI);
-            buf[i] = (self.phase).sin() * (volume as f32 / 100.);
+            *sample = (self.phase).sin() * (volume as f32 / 100.);
         }
         self.writer.push_slice(&buf); // TODO this can desync phase
     }

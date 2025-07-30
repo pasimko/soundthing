@@ -29,7 +29,6 @@ impl WasmAudioProcessor {
 // user interaction. Otherwise, resume the context on user interaction, so
 // playback starts reliably on all browsers.
 // takes an Output node
-// needs to be able to grab a lock when process is called
 pub async fn wasm_audio(output: HeapCons<f32>) -> Result<AudioContext, JsValue> {
     let ctx = AudioContext::new()?;
     prepare_wasm_audio(&ctx).await?;
