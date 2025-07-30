@@ -1,8 +1,8 @@
 use std::sync::mpsc::Sender;
 use crate::Canvas;
-use crate::nodes::oscillators::{OscMessage};
+use crate::nodes::oscillators::{OscMessage, OscNodeHandle};
 
-pub fn create_gui(message_handlers: Vec<Sender<OscMessage>>) {
+pub fn create_gui(message_handlers: Vec<OscNodeHandle>) {
     use eframe::wasm_bindgen::JsCast as _;
 
     // Redirect `log` message to `console.log` and friends:

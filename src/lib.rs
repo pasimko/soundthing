@@ -6,20 +6,18 @@ mod dependent_module;
 
 pub use app::Canvas;
 use crate::nodes::Node;
-use crate::nodes::oscillators::OscMessage;
 use gui::create_gui;
 use nodes::oscillators::SineOsc;
 use nodes::output::{Output};
-// use ringbuf::{traits::*, HeapRb};
 use wasm_audio::wasm_audio;
 use wasm_bindgen::prelude::*;
-use std::sync::mpsc::Sender;
+use crate::nodes::oscillators::{OscNodeHandle};
 
 #[wasm_bindgen]
 pub async fn web_main() {
     let mut output_node = Output::new();
 
-    let mut msg_handlers : Vec<Sender<OscMessage>> = Vec::new();
+    let mut msg_handlers : Vec<OscNodeHandle> = Vec::new();
 
     for _ in 0..3 {
         let (sine_node, sine_node_msg) = SineOsc::new("a");
