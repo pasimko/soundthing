@@ -1,3 +1,4 @@
+use crate::Node;
 use crate::Output;
 use crate::dependent_module;
 use wasm_bindgen::prelude::*;
@@ -11,6 +12,9 @@ use web_sys::{AudioContext, AudioWorkletNode, AudioWorkletNodeOptions};
 #[wasm_bindgen]
 pub struct WasmAudioProcessor(Output);
 
+// TODO issue: This thing owns the Output
+// and idk how to easily do something like add an input
+// once that's the case
 #[wasm_bindgen]
 impl WasmAudioProcessor {
     pub fn process(&mut self, buf: &mut [f32]) -> bool {

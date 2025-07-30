@@ -21,10 +21,11 @@ pub async fn web_main() {
 
     let mut msg_handlers : Vec<Sender<OscMessage>> = Vec::new();
 
-    let (sine_node, sine_node_msg) = SineOsc::new("a");
-    output_node.add_input(Box::new(sine_node));
-    // clearly a mistake
-    msg_handlers.push(sine_node_msg);
+    for _ in 0..3 {
+        let (sine_node, sine_node_msg) = SineOsc::new("a");
+        output_node.add_input(Box::new(sine_node));
+        msg_handlers.push(sine_node_msg);
+    }
 
     create_gui(msg_handlers);
     let ctx = wasm_audio(output_node).await.unwrap();

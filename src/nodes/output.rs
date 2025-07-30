@@ -15,8 +15,7 @@
 // (maybe parameters to all the Nodes should be atomic?)
 
 use crate::Node;
-use super::SAMPLESIZE;
-use ringbuf::{HeapProd, HeapCons, traits::*};
+use ringbuf::traits::*;
 use std::iter::zip;
 
 pub struct Output {
@@ -49,8 +48,9 @@ impl Output {
     pub fn process(&mut self, output: &mut [f32]) {
         output.iter_mut().for_each( |x| *x = 0.);
         for node in &mut self.inputs {
-            let mut cur_buf = [0. ; SAMPLESIZE];
-            node.process(&mut cur_buf);
+            let mut cur_buf = output.to_vec(); // pointless but
+            // cur_buf.copy_from_slice(&output);
+            node.process(cur_buf.as_mut_slice()); // WHY IS THIS
             for (a, b) in zip(output.iter_mut(), cur_buf.iter()) {
                 *a += b;
             }
