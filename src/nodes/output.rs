@@ -14,26 +14,25 @@
 // is rwlock ever the right move?
 // (maybe parameters to all the Nodes should be atomic?)
 
+use crate::Node;
 use super::SAMPLESIZE;
 use ringbuf::{HeapProd, HeapCons, traits::*};
 use std::iter::zip;
 
 pub struct Output {
-    inputs: Vec<HeapCons<f32>>,
+    inputs: Vec<Box<dyn Node>>,
     muted: bool,
     volume: u8,
     accumulator: u32,
-    output: HeapProd<f32>,
 }
 
 impl Output {
-    pub fn new(output: HeapProd<f32>) -> Self {
+    pub fn new() -> Self {
         Self {
             inputs: Vec::new(),
             volume: 255,
             muted: false,
             accumulator: 0,
-            output,
         }
     }
     pub fn toggle_muted(&mut self) {
@@ -42,18 +41,19 @@ impl Output {
     pub fn set_volume(&mut self, volume: u8) {
         self.volume = volume;
     }
-    pub fn add_input(&mut self, node_output: HeapCons<f32>) {
-        self.inputs.push(node_output);
+    pub fn add_input(&mut self, node: Box<dyn Node>) {
+        self.inputs.push(node);
     }
-    pub fn process(&mut self) {
-        let mut buf = [0. ; SAMPLESIZE];
+    // additively mix child nodes
+    // need a mechanism to prevent duplicate process calls on ancestors
+    pub fn process(&mut self, output: &mut [f32]) {
+        output.iter_mut().for_each( |x| *x = 0.);
         for node in &mut self.inputs {
             let mut cur_buf = [0. ; SAMPLESIZE];
-            node.pop_slice(&mut cur_buf);
-            for (a, b) in zip(buf.iter_mut(), cur_buf.iter()) {
+            node.process(&mut cur_buf);
+            for (a, b) in zip(output.iter_mut(), cur_buf.iter()) {
                 *a += b;
             }
         }
-        self.output.push_slice(&buf);
     }
 }

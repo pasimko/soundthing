@@ -1,15 +1,17 @@
 use crate::nodes::Node;
 use std::sync::Arc;
+use std::sync::mpsc::Sender;
+use crate::nodes::oscillators::{OscMessage};
 
 pub struct Canvas {
-    nodes: Vec<Box<dyn Node>>,
+    node_msg_handlers: Vec<Sender<OscMessage>>,
 }
 
 impl Canvas {
     /// Called once before the first frame.
-    pub fn new(nodes: Vec<Box<dyn Node>>) -> Self {
+    pub fn new(nodes: Vec<Sender<OscMessage>>) -> Self {
         Self {
-            nodes,
+            node_msg_handlers: nodes,
         }
     }
 }
@@ -46,10 +48,24 @@ impl eframe::App for Canvas {
             // Choose to flash UI when lock fails
             // TODO fix that behavior later
             // TODO move to message passing?
-            for audio_node in &self.nodes {
+            for audio_node in &self.node_msg_handlers {
                 // let mut lock = audio_node.try_lock();
                 // if let Ok(ref mut node) = lock {
-                audio_node.build_controls(&ctx);
+                egui::Window::new("test").show(ctx, |ui| {
+                    // TODO how do I remember these
+                    let mut new_freq = 0;
+                    let mut new_vol = 0;
+
+                    let freq = ui.add(egui::Slider::new(&mut new_freq, 20..=2000).text("frequency").logarithmic(true));
+                    let vol = ui.add(egui::Slider::new(&mut new_vol, 0..=128).text("volume"));
+                    if freq.dragged() {
+                        audio_node.send(OscMessage::Frequency(new_freq)).unwrap();
+                    }
+                    if vol.dragged() {
+                        audio_node.send(OscMessage::Volume(new_vol)).unwrap();
+                    }
+                    // self.msg_channel.0.send(new_freq).unwrap();
+                });
             }
             // ui.separator();
 

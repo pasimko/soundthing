@@ -1,9 +1,8 @@
+use std::sync::mpsc::Sender;
 use crate::Canvas;
-use crate::nodes::Node;
-use crate::nodes::oscillators::{SineOsc};
-use crate::nodes::output::Output;
+use crate::nodes::oscillators::{OscMessage};
 
-pub fn create_gui(output: &mut Output) {
+pub fn create_gui(message_handlers: Vec<Sender<OscMessage>>) {
     use eframe::wasm_bindgen::JsCast as _;
 
     // Redirect `log` message to `console.log` and friends:
@@ -13,14 +12,6 @@ pub fn create_gui(output: &mut Output) {
 
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
-
-    let mut nodes : Vec<Box<dyn Node>> = Vec::new();
-
-    let (node, buf) = SineOsc::new("a");
-    let (so1, so1_output) = (Box::new(node), buf);
-    output.add_input(so1_output);
-    // clearly a mistake
-    nodes.push(so1);
 
     wasm_bindgen_futures::spawn_local(async move {
         let canvas = document
@@ -34,7 +25,7 @@ pub fn create_gui(output: &mut Output) {
                 canvas,
                 web_options,
                 Box::new(move |_| {
-                    Ok(Box::new(Canvas::new(nodes)))
+                    Ok(Box::new(Canvas::new(message_handlers)))
                 }),
             )
             .await;

@@ -1,20 +1,21 @@
+use crate::Output;
 use crate::dependent_module;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AudioContext, AudioWorkletNode, AudioWorkletNodeOptions};
-use ringbuf::{HeapCons, consumer::Consumer};
+// use ringbuf::{HeapCons, consumer::Consumer};
 
 // TODO idk if this "tuple struct" thing is necessary
 // or really why it's like this
 #[wasm_bindgen]
-pub struct WasmAudioProcessor(HeapCons<f32>);
+pub struct WasmAudioProcessor(Output);
 
 #[wasm_bindgen]
 impl WasmAudioProcessor {
     pub fn process(&mut self, buf: &mut [f32]) -> bool {
-        let popped_count = self.0.pop_slice(buf);
-        popped_count == buf.len()
+        self.0.process(buf);
+        true
     }
     pub fn pack(self) -> usize {
         Box::into_raw(Box::new(self)) as usize
@@ -29,7 +30,7 @@ impl WasmAudioProcessor {
 // user interaction. Otherwise, resume the context on user interaction, so
 // playback starts reliably on all browsers.
 // takes an Output node
-pub async fn wasm_audio(output: HeapCons<f32>) -> Result<AudioContext, JsValue> {
+pub async fn wasm_audio(output: Output) -> Result<AudioContext, JsValue> {
     let ctx = AudioContext::new()?;
     prepare_wasm_audio(&ctx).await?;
     let node = wasm_audio_node(&ctx, output)?;
@@ -42,7 +43,7 @@ pub async fn wasm_audio(output: HeapCons<f32>) -> Result<AudioContext, JsValue> 
 // this function.
 pub fn wasm_audio_node(
     ctx: &AudioContext,
-    output: HeapCons<f32>,
+    output: Output,
 ) -> Result<AudioWorkletNode, JsValue> {
     let options = AudioWorkletNodeOptions::new();
     options.set_processor_options(Some(&js_sys::Array::of3(
