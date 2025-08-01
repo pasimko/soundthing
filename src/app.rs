@@ -1,22 +1,41 @@
 use egui::Id;
-use std::sync::mpsc::Sender;
-use crate::nodes::oscillators::{OscMessage, OscNodeHandle};
-use std::iter::zip;
+
+use crate::nodes::{oscillators::OscMessage, NodeHandle, Parameter};
 
 // horrible, will fix
 pub struct Canvas {
-    nodes: Vec<OscNodeHandle>,
+    nodes: Vec<NodeHandle>,
 }
 
 impl Canvas {
     /// Called once before the first frame.
-    pub fn new(nodes: Vec<OscNodeHandle>) -> Self {
+    pub fn new(nodes: Vec<NodeHandle>) -> Self {
         let mut node_parameters = Vec::new();
         for _ in 0..nodes.len() {
             node_parameters.push((0, 0));
         }
         Self {
             nodes,
+        }
+    }
+}
+
+// the way to think about this is not as a node, but as a message sender
+// all it needs to know is the kind of message it must send
+fn render_node(ctx: &egui::Context, handler: &mut NodeHandle, id: usize) {
+    let params = &mut handler.params;
+    match params {
+        Parameter::Osc(p) => {
+            egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
+                let freq_res = ui.add(egui::Slider::new(&mut p.freq, 20.0..=2000.0).text("frequency").logarithmic(true));
+                let vol_res = ui.add(egui::Slider::new(&mut p.vol, 0..=101).text("volume"));
+                if freq_res.changed() {
+                    handler.sender.send(OscMessage::Frequency(p.freq)).unwrap();
+                }
+                if vol_res.changed() {
+                    handler.sender.send(OscMessage::Volume(p.vol)).unwrap();
+                }
+            });
         }
     }
 }
@@ -44,19 +63,8 @@ impl eframe::App for Canvas {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("music");
 
-            // horrible
             for (i, handler) in (&mut self.nodes).iter_mut().enumerate() {
-                let params = &mut handler.params;
-                egui::Window::new(&params.name).id(Id::new(i)).show(ctx, |ui| {
-                    let freq_res = ui.add(egui::Slider::new(&mut params.freq, 20.0..=2000.0).text("frequency").logarithmic(true));
-                    let vol_res = ui.add(egui::Slider::new(&mut params.vol, 0..=128).text("volume"));
-                    if freq_res.changed() {
-                        handler.sender.send(OscMessage::Frequency(params.freq)).unwrap();
-                    }
-                    if vol_res.changed() {
-                        handler.sender.send(OscMessage::Volume(params.vol)).unwrap();
-                    }
-                });
+                render_node(ctx, handler, i);
             }
             // ui.separator();
 

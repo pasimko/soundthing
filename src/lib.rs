@@ -7,23 +7,29 @@ mod dependent_module;
 pub use app::Canvas;
 use crate::nodes::Node;
 use gui::create_gui;
-use nodes::oscillators::SineOsc;
+use nodes::oscillators::{SineOsc, SawtoothOsc, SquareOsc};
 use nodes::output::{Output};
 use wasm_audio::wasm_audio;
 use wasm_bindgen::prelude::*;
-use crate::nodes::oscillators::{OscNodeHandle};
+use crate::nodes::{NodeHandle};
 
 #[wasm_bindgen]
 pub async fn web_main() {
     let mut output_node = Output::new();
 
-    let mut msg_handlers : Vec<OscNodeHandle> = Vec::new();
+    let mut msg_handlers : Vec<NodeHandle> = Vec::new();
 
-    for _ in 0..3 {
-        let (sine_node, sine_node_msg) = SineOsc::new("a");
-        output_node.add_input(Box::new(sine_node));
-        msg_handlers.push(sine_node_msg);
-    }
+    let (node, node_handler) = SineOsc::new("Sine Osc");
+    output_node.add_input(Box::new(node));
+    msg_handlers.push(node_handler);
+
+    let (node, node_handler) = SawtoothOsc::new("Sawtooth Osc");
+    output_node.add_input(Box::new(node));
+    msg_handlers.push(node_handler);
+
+    let (node, node_handler) = SquareOsc::new("Square Osc");
+    output_node.add_input(Box::new(node));
+    msg_handlers.push(node_handler);
 
     create_gui(msg_handlers);
     let ctx = wasm_audio(output_node).await.unwrap();

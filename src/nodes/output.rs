@@ -15,7 +15,6 @@
 // (maybe parameters to all the Nodes should be atomic?)
 
 use crate::Node;
-use ringbuf::traits::*;
 use std::iter::zip;
 
 pub struct Output {
