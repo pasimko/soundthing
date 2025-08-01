@@ -1,4 +1,5 @@
 // use crate::nodes::Parameter;
+use std::sync::mpsc::Sender;
 use super::{Node, NodeHandle, SAMPLERATE, Parameter};
 use std::f32::consts::PI;
 use std::sync::mpsc::channel;
@@ -9,11 +10,12 @@ pub enum OscMessage {
     Volume(u8),
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct OscParameters {
     pub freq: f32,
     pub vol: u8,
     pub name: String,
+    pub sender: Sender<OscMessage>,
 }
 
 pub struct SineOsc {
@@ -29,10 +31,11 @@ impl SineOsc {
             freq: 220.,
             vol: 32,
             name: n.to_owned(),
+            sender: msg_sender,
         };
         let handler = NodeHandle {
-            sender: msg_sender,
-            params: Parameter::Osc(params.clone()), // TODO not tightly coupled...
+            // TODO not tightly coupled...
+            params: Parameter::Osc(params.clone()),
         };
         (Self {
             params,
@@ -46,7 +49,7 @@ impl Node for SineOsc {
     fn process(&mut self, output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { match msg {
-            OscMessage::Frequency(val) => self.params.freq = val as f32,
+            OscMessage::Frequency(val) => self.params.freq = val,
             OscMessage::Volume(val) => self.params.vol = val,
         } };
         for sample in output.iter_mut() {
@@ -72,10 +75,11 @@ impl SawtoothOsc {
             freq: 220.,
             vol: 32,
             name: n.to_owned(),
+            sender: msg_sender,
         };
         let handler = NodeHandle {
-            sender: msg_sender,
-            params: Parameter::Osc(params.clone()), // TODO not tightly coupled...
+            // TODO not tightly coupled...
+            params: Parameter::Osc(params.clone()),
         };
         (Self {
             params,
@@ -89,13 +93,13 @@ impl Node for SawtoothOsc {
     fn process(&mut self, output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { match msg {
-            OscMessage::Frequency(val) => self.params.freq = val as f32,
+            OscMessage::Frequency(val) => self.params.freq = val,
             OscMessage::Volume(val) => self.params.vol = val,
         } };
         for a in output {
             let frequency = self.params.freq;
             let volume = self.params.vol;
-            self.phase += frequency as f32 / 48_000.;
+            self.phase += frequency / 48_000.;
             self.phase = self.phase.rem_euclid(2.);
             *a = (self.phase - 1.) * (volume as f32 / 100.);
         }
@@ -115,9 +119,10 @@ impl SquareOsc {
             freq: 220.,
             vol: 32,
             name: n.to_owned(),
+            sender: msg_sender,
         };
         let handler = NodeHandle {
-            sender: msg_sender,
+            // TODO not tightly coupled...
             params: Parameter::Osc(params.clone()),
         };
         (Self {
@@ -132,13 +137,13 @@ impl Node for SquareOsc {
     fn process(&mut self, output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { match msg {
-            OscMessage::Frequency(val) => self.params.freq = val as f32,
+            OscMessage::Frequency(val) => self.params.freq = val,
             OscMessage::Volume(val) => self.params.vol = val,
         } };
         for a in output {
             let frequency = self.params.freq;
             let volume = self.params.vol;
-            self.phase += frequency as f32 / 48_000.;
+            self.phase += frequency / 48_000.;
             self.phase = self.phase.rem_euclid(1.);
             *a = self.phase.round() * (volume as f32 / 100.);
         }

@@ -5,9 +5,11 @@ mod app;
 mod dependent_module;
 
 pub use app::Canvas;
+use crate::nodes::adsr::AdsrNode;
 use crate::nodes::Node;
 use gui::create_gui;
 use nodes::oscillators::{SineOsc, SawtoothOsc, SquareOsc};
+// use nodes::adsr::{AdsrNode};
 use nodes::output::{Output};
 use wasm_audio::wasm_audio;
 use wasm_bindgen::prelude::*;
@@ -23,13 +25,18 @@ pub async fn web_main() {
     output_node.add_input(Box::new(node));
     msg_handlers.push(node_handler);
 
+    let (mut adsr_node, node_handler) = AdsrNode::new("ADSR");
+    msg_handlers.push(node_handler);
+
     let (node, node_handler) = SawtoothOsc::new("Sawtooth Osc");
     output_node.add_input(Box::new(node));
     msg_handlers.push(node_handler);
 
     let (node, node_handler) = SquareOsc::new("Square Osc");
-    output_node.add_input(Box::new(node));
+    adsr_node.add_input(Box::new(node));
     msg_handlers.push(node_handler);
+
+    output_node.add_input(Box::new(adsr_node));
 
     create_gui(msg_handlers);
     let ctx = wasm_audio(output_node).await.unwrap();

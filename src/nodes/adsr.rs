@@ -1,50 +1,46 @@
-use super::{Node, SAMPLERATE};
-use std::f32::consts::PI;
+use super::{Node, NodeHandle, Parameter};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
+use std::iter::zip;
 
-pub enum OscMessage {
-    Frequency(f32),
-    Volume(u8),
+pub enum AdsrMessage {
+    On(bool),
 }
 
-#[derive(Default, Debug, Clone)]
-pub struct OscParameters {
-    pub freq: f32,
-    pub vol: u8,
+// TODO are these traits necessary
+#[derive(Debug, Clone)]
+pub struct AdsrParameters {
+    pub on: bool,
     pub name: String,
-}
-
-
-pub struct OscNodeHandle {
-    pub sender: Sender<OscMessage>,
-    pub params: OscParameters,
+    pub sender: Sender<AdsrMessage>,
 }
 
 pub struct AdsrNode {
-    params: OscParameters,
-    phase: f32,
-    msg_receiver: Receiver<OscMessage>,
+    params: AdsrParameters,
+    msg_receiver: Receiver<AdsrMessage>,
+    inputs: Vec<Box<dyn Node>>,
 }
 
 impl AdsrNode {
-    pub fn new(n: &str) -> (Self, OscNodeHandle) {
+    pub fn new(n: &str) -> (Self, NodeHandle) {
         let (msg_sender, msg_receiver) = channel();
-        let params = OscParameters {
-            freq: 220.,
-            vol: 32,
+        let params = AdsrParameters {
+            on: false,
             name: n.to_owned(),
-        };
-        let handler = OscNodeHandle {
             sender: msg_sender,
-            params: params.clone(), // TODO not tightly coupled...
+        };
+        let handler = NodeHandle {
+            params: Parameter::Adsr(params.clone()),
         };
         (Self {
             params,
-            phase: 0.,
             msg_receiver,
+            inputs: Vec::new(),
         }, handler)
+    }
+    pub fn add_input(&mut self, node: Box<dyn Node>) {
+        self.inputs.push(node);
     }
 }
 
@@ -52,15 +48,18 @@ impl Node for AdsrNode {
     fn process(&mut self, output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { match msg {
-            OscMessage::Frequency(val) => self.params.freq = val as f32,
-            OscMessage::Volume(val) => self.params.vol = val,
+            AdsrMessage::On(val) => self.params.on = val,
         } };
-        for sample in output.iter_mut() {
-            let frequency = self.params.freq;
-            let volume = self.params.vol;
-            self.phase += 2. * PI / (SAMPLERATE as f32 / frequency);
-            self.phase = self.phase.rem_euclid(2. * PI);
-            *sample = (self.phase).sin() * (volume as f32 / 100.);
+        if self.params.on {
+            output.iter_mut().for_each( |x| *x = 0.);
+            for node in &mut self.inputs {
+                let mut cur_buf = output.to_vec(); // pointless but
+                                                   // cur_buf.copy_from_slice(&output);
+                node.process(cur_buf.as_mut_slice()); // WHY IS THIS
+                for (a, b) in zip(output.iter_mut(), cur_buf.iter()) {
+                    *a += b;
+                }
+            }
         }
     }
 }

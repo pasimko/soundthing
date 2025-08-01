@@ -1,6 +1,6 @@
 use egui::Id;
 
-use crate::nodes::{oscillators::OscMessage, NodeHandle, Parameter};
+use crate::nodes::{adsr::AdsrMessage, oscillators::OscMessage, NodeHandle, Parameter};
 
 // horrible, will fix
 pub struct Canvas {
@@ -30,11 +30,19 @@ fn render_node(ctx: &egui::Context, handler: &mut NodeHandle, id: usize) {
                 let freq_res = ui.add(egui::Slider::new(&mut p.freq, 20.0..=2000.0).text("frequency").logarithmic(true));
                 let vol_res = ui.add(egui::Slider::new(&mut p.vol, 0..=101).text("volume"));
                 if freq_res.changed() {
-                    handler.sender.send(OscMessage::Frequency(p.freq)).unwrap();
+                    p.sender.send(OscMessage::Frequency(p.freq)).unwrap();
                 }
                 if vol_res.changed() {
-                    handler.sender.send(OscMessage::Volume(p.vol)).unwrap();
+                    p.sender.send(OscMessage::Volume(p.vol)).unwrap();
                 }
+            });
+        }
+        Parameter::Adsr(p) => {
+            egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
+                let on = ui.add(egui::Button::new("on"));
+                let on = on.is_pointer_button_down_on();
+                p.on = on;
+                p.sender.send(AdsrMessage::On(on)).unwrap();
             });
         }
     }
@@ -63,7 +71,7 @@ impl eframe::App for Canvas {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("music");
 
-            for (i, handler) in (&mut self.nodes).iter_mut().enumerate() {
+            for (i, handler) in self.nodes.iter_mut().enumerate() {
                 render_node(ctx, handler, i);
             }
             // ui.separator();

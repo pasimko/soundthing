@@ -1,11 +1,9 @@
-use crate::Node;
 use crate::Output;
 use crate::dependent_module;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AudioContext, AudioWorkletNode, AudioWorkletNodeOptions};
-// use ringbuf::{HeapCons, consumer::Consumer};
 
 // TODO idk if this "tuple struct" thing is necessary
 // or really why it's like this

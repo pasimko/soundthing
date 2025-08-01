@@ -1,4 +1,3 @@
-use std::sync::mpsc::Sender;
 use crate::{nodes::NodeHandle, Canvas};
 
 pub fn create_gui(message_handlers: Vec<NodeHandle>) {

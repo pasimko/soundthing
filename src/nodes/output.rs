@@ -17,6 +17,7 @@
 use crate::Node;
 use std::iter::zip;
 
+#[allow(dead_code)]
 pub struct Output {
     inputs: Vec<Box<dyn Node>>,
     muted: bool,
@@ -24,6 +25,7 @@ pub struct Output {
     accumulator: u32,
 }
 
+#[allow(dead_code)]
 impl Output {
     pub fn new() -> Self {
         Self {
