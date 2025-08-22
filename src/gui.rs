@@ -1,6 +1,6 @@
-use crate::{nodes::NodeHandle, Canvas};
+use crate::{nodes::Parameter, Canvas};
 
-pub fn create_gui(message_handlers: Vec<NodeHandle>) {
+pub fn create_gui(message_handlers: Vec<Parameter>) {
     use eframe::wasm_bindgen::JsCast as _;
 
     // Redirect `log` message to `console.log` and friends:

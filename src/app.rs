@@ -1,15 +1,14 @@
 use egui::Id;
 
-use crate::nodes::{adsr::AdsrMessage, oscillators::OscMessage, NodeHandle, Parameter};
+use crate::nodes::{Message, Parameter};
 
-// horrible, will fix
 pub struct Canvas {
-    nodes: Vec<NodeHandle>,
+    nodes: Vec<Parameter>,
 }
 
 impl Canvas {
     /// Called once before the first frame.
-    pub fn new(nodes: Vec<NodeHandle>) -> Self {
+    pub fn new(nodes: Vec<Parameter>) -> Self {
         let mut node_parameters = Vec::new();
         for _ in 0..nodes.len() {
             node_parameters.push((0, 0));
@@ -22,27 +21,54 @@ impl Canvas {
 
 // the way to think about this is not as a node, but as a message sender
 // all it needs to know is the kind of message it must send
-fn render_node(ctx: &egui::Context, handler: &mut NodeHandle, id: usize) {
-    let params = &mut handler.params;
+fn render_node(ctx: &egui::Context, handler: &mut Parameter, id: usize) {
+    let params = handler;
     match params {
         Parameter::Osc(p) => {
-            egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
+            let result = egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
                 let freq_res = ui.add(egui::Slider::new(&mut p.freq, 20.0..=2000.0).text("frequency").logarithmic(true));
-                let vol_res = ui.add(egui::Slider::new(&mut p.vol, 0..=101).text("volume"));
+                let vol_res = ui.add(egui::Slider::new(&mut p.target_vol, 0..=101).text("volume"));
                 if freq_res.changed() {
-                    p.sender.send(OscMessage::Frequency(p.freq)).unwrap();
+                    p.sender.send(Message::Frequency(p.freq)).unwrap();
                 }
                 if vol_res.changed() {
-                    p.sender.send(OscMessage::Volume(p.vol)).unwrap();
+                    p.sender.send(Message::Volume(p.target_vol)).unwrap();
                 }
             });
+            if let Some(r) = result {
+                if r.response.contains_pointer() {
+                    ctx.input(|i| {
+                        for &key in i.keys_down.iter() {
+                            if i.key_pressed(key) {
+                                p.freq = match key {
+                                    egui::Key::A => 220.,
+                                    egui::Key::S => 220.*1.25,
+                                    egui::Key::D => 220.*1.5,
+                                    egui::Key::F => 220.*1.75,
+                                    egui::Key::G => 220.*2.,
+                                    _ => 110.,
+                                };
+                                p.sender.send(Message::Frequency(p.freq)).unwrap();
+                            }
+                        }
+                    });
+                }
+            }
         }
         Parameter::Adsr(p) => {
             egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
                 let on = ui.add(egui::Button::new("on"));
-                let on = on.is_pointer_button_down_on();
+                let on = on.hovered();
                 p.on = on;
-                p.sender.send(AdsrMessage::On(on)).unwrap();
+                p.sender.send(Message::On(on)).unwrap();
+            });
+        }
+        Parameter::Timer(p) => {
+            egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
+                // let on = ui.add(egui::Button::new("on"));
+                // let on = on.hovered();
+                // p.on = on;
+                // p.sender.send(AdsrMessage::On(on)).unwrap();
             });
         }
     }
@@ -68,6 +94,7 @@ impl eframe::App for Canvas {
             });
         });
 
+        // TODO make this an egui::Scene
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("music");
 
