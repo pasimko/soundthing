@@ -1,4 +1,4 @@
-use crate::Output;
+use crate::graph::AudioGraph;
 use crate::dependent_module;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
@@ -8,9 +8,9 @@ use web_sys::{AudioContext, AudioWorkletNode, AudioWorkletNodeOptions};
 // TODO idk if this "tuple struct" thing is necessary
 // or really why it's like this
 #[wasm_bindgen]
-pub struct WasmAudioProcessor(Output);
+pub struct WasmAudioProcessor(AudioGraph);
 
-// TODO issue: This thing owns the Output
+// TODO issue: This thing owns the AudioGraph
 // and idk how to easily do something like add an input
 // once that's the case
 #[wasm_bindgen]
@@ -31,11 +31,11 @@ impl WasmAudioProcessor {
 // whose samples should be played directly. Ideally, call wasm_audio based on
 // user interaction. Otherwise, resume the context on user interaction, so
 // playback starts reliably on all browsers.
-// takes an Output node
-pub async fn wasm_audio(output: Output) -> Result<AudioContext, JsValue> {
+// takes an AudioGraph node
+pub async fn wasm_audio(audio_graph: AudioGraph) -> Result<AudioContext, JsValue> {
     let ctx = AudioContext::new()?;
     prepare_wasm_audio(&ctx).await?;
-    let node = wasm_audio_node(&ctx, output)?;
+    let node = wasm_audio_node(&ctx, audio_graph)?;
     node.connect_with_audio_node(&ctx.destination())?;
     Ok(ctx)
 }
@@ -45,13 +45,13 @@ pub async fn wasm_audio(output: Output) -> Result<AudioContext, JsValue> {
 // this function.
 pub fn wasm_audio_node(
     ctx: &AudioContext,
-    output: Output,
+    audio_graph: AudioGraph,
 ) -> Result<AudioWorkletNode, JsValue> {
     let options = AudioWorkletNodeOptions::new();
     options.set_processor_options(Some(&js_sys::Array::of3(
         &wasm_bindgen::module(),
         &wasm_bindgen::memory(),
-        &WasmAudioProcessor(output).pack().into(),
+        &WasmAudioProcessor(audio_graph).pack().into(),
     )));
     AudioWorkletNode::new_with_options(ctx, "WasmProcessor", &options)
 }

@@ -21,6 +21,7 @@ impl Canvas {
 
 // the way to think about this is not as a node, but as a message sender
 // all it needs to know is the kind of message it must send
+// TODO refactor. This could just take an array of tuples or something: key, type, range?
 fn render_node(ctx: &egui::Context, handler: &mut Parameter, id: usize) {
     let params = handler;
     match params {

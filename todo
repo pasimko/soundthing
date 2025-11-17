@@ -1,0 +1,6 @@
+AudioContext:
+    Thing that fetches audio samples i think
+* Change struct+pointer graph to a struct+index setup
+    * rethink how the output node's sample is read
+    * pass hashmap and key of output into wasmaudioprocessor
+    * WasmAudioProcessor.process() does a DFS/topological sort of the nodes

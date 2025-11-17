@@ -45,7 +45,7 @@ impl SineOsc {
 }
 
 impl Node for SineOsc {
-    fn process(&mut self, output: &mut [f32]) {
+    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { match msg {
             Message::Frequency(val) => self.params.freq = val,
@@ -93,7 +93,7 @@ impl SawtoothOsc {
 }
 
 impl Node for SawtoothOsc {
-    fn process(&mut self, output: &mut [f32]) {
+    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { match msg {
             Message::Frequency(val) => self.params.freq = val,
@@ -136,7 +136,7 @@ impl SquareOsc {
 }
 
 impl Node for SquareOsc {
-    fn process(&mut self, output: &mut [f32]) {
+    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { match msg {
             Message::Frequency(val) => self.params.freq = val,

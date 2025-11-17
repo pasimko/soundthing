@@ -39,38 +39,38 @@ impl AdsrNode {
     }
 }
 
-impl Node for AdsrNode {
-    fn process(&mut self, output: &mut [f32]) {
-        let msg = self.msg_receiver.try_recv();
-        if let Ok(msg) = msg { match msg {
-            Message::On(val) => self.params.on = val,
-            _ => (),
-        } };
-        if self.params.on {
-            if self.on_count < 100 {
-                self.on_count += 1;
-            }
-            output.iter_mut().for_each( |x| *x = 0.);
-            for node in &mut self.inputs {
-                let mut cur_buf = output.to_vec(); // pointless but
-                                                   // cur_buf.copy_from_slice(&output);
-                node.process(cur_buf.as_mut_slice()); // WHY IS THIS
-                for (a, b) in zip(output.iter_mut(), cur_buf.iter()) {
-                    *a += b * (self.on_count as f32 / 100.);
-                }
-            }
-        }
-        else if self.on_count > 0 {
-            self.on_count -= 1;
-            output.iter_mut().for_each( |x| *x = 0.);
-            for node in &mut self.inputs {
-                let mut cur_buf = output.to_vec(); // pointless but
-                                                   // cur_buf.copy_from_slice(&output);
-                node.process(cur_buf.as_mut_slice()); // WHY IS THIS
-                for (a, b) in zip(output.iter_mut(), cur_buf.iter()) {
-                    *a += b * (self.on_count as f32 / 100.);
-                }
-            }
-        }
-    }
-}
+// impl Node for AdsrNode {
+//     fn process(&mut self, output: &mut [f32]) {
+//         let msg = self.msg_receiver.try_recv();
+//         if let Ok(msg) = msg { match msg {
+//             Message::On(val) => self.params.on = val,
+//             _ => (),
+//         } };
+//         if self.params.on {
+//             if self.on_count < 100 {
+//                 self.on_count += 1;
+//             }
+//             output.iter_mut().for_each( |x| *x = 0.);
+//             for node in &mut self.inputs {
+//                 let mut cur_buf = output.to_vec(); // pointless but
+//                                                    // cur_buf.copy_from_slice(&output);
+//                 node.process(cur_buf.as_mut_slice()); // WHY IS THIS
+//                 for (a, b) in zip(output.iter_mut(), cur_buf.iter()) {
+//                     *a += b * (self.on_count as f32 / 100.);
+//                 }
+//             }
+//         }
+//         else if self.on_count > 0 {
+//             self.on_count -= 1;
+//             output.iter_mut().for_each( |x| *x = 0.);
+//             for node in &mut self.inputs {
+//                 let mut cur_buf = output.to_vec(); // pointless but
+//                                                    // cur_buf.copy_from_slice(&output);
+//                 node.process(cur_buf.as_mut_slice()); // WHY IS THIS
+//                 for (a, b) in zip(output.iter_mut(), cur_buf.iter()) {
+//                     *a += b * (self.on_count as f32 / 100.);
+//                 }
+//             }
+//         }
+//     }
+// }

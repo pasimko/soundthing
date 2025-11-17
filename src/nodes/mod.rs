@@ -14,7 +14,7 @@ pub mod output;
 pub const SAMPLERATE: usize = 48_000;
 
 pub trait Node {
-    fn process(&mut self, output: &mut [f32]);
+    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]);
 }
 
 // used by UI to display the parameters of a node
@@ -29,6 +29,7 @@ pub enum Parameter {
 
 // I don't love this - added because TimerNode needs to be able
 // to send a message to any Node and this seemed simplest
+// TODO move to individual node
 #[derive(Clone)]
 pub enum Message {
     Duration(u32),
