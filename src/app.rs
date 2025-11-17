@@ -56,22 +56,22 @@ fn render_node(ctx: &egui::Context, handler: &mut Parameter, id: usize) {
                 }
             }
         }
-        Parameter::Adsr(p) => {
-            egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
-                let on = ui.add(egui::Button::new("on"));
-                let on = on.hovered();
-                p.on = on;
-                p.sender.send(Message::On(on)).unwrap();
-            });
-        }
-        Parameter::Timer(p) => {
-            egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
-                // let on = ui.add(egui::Button::new("on"));
-                // let on = on.hovered();
-                // p.on = on;
-                // p.sender.send(AdsrMessage::On(on)).unwrap();
-            });
-        }
+        // Parameter::Adsr(p) => {
+        //     egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
+        //         let on = ui.add(egui::Button::new("on"));
+        //         let on = on.hovered();
+        //         p.on = on;
+        //         p.sender.send(Message::On(on)).unwrap();
+        //     });
+        // }
+        // Parameter::Timer(p) => {
+        //     egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
+        //         // let on = ui.add(egui::Button::new("on"));
+        //         // let on = on.hovered();
+        //         // p.on = on;
+        //         // p.sender.send(AdsrMessage::On(on)).unwrap();
+        //     });
+        // }
     }
 }
 

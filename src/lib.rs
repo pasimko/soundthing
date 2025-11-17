@@ -1,16 +1,15 @@
+mod app;
+mod glue;
+mod graph;
 mod gui;
 mod nodes;
-mod wasm_audio;
-mod app;
-mod dependent_module;
-mod graph;
 
 pub use app::Canvas;
 use crate::nodes::{Parameter, Node};
 use gui::create_gui;
 use nodes::oscillators::{SineOsc};
 use nodes::output::{Output};
-use wasm_audio::wasm_audio;
+use glue::wasm_audio::wasm_audio;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -22,7 +21,7 @@ pub async fn web_main() {
     let graph = graph::AudioGraph::new();
 
     create_gui(msg_handlers);
-    let ctx = wasm_audio(output_node).await.unwrap();
+    let ctx = wasm_audio(graph).await.unwrap();
 
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();

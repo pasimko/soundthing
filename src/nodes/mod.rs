@@ -1,12 +1,12 @@
 use crate::nodes::{
-    timer::{TimerParameters},
-    adsr::{AdsrParameters},
+    // timer::{TimerParameters},
+    // adsr::{AdsrParameters},
     oscillators::{OscParameters}
 };
 
 pub mod oscillators;
-pub mod adsr;
-pub mod timer;
+// pub mod adsr;
+// pub mod timer;
 pub mod output;
 
 // pub const BUFSIZE: usize = 0x1000;
@@ -23,8 +23,8 @@ pub trait Node {
 #[derive(Clone)]
 pub enum Parameter {
     Osc(OscParameters),
-    Adsr(AdsrParameters),
-    Timer(TimerParameters),
+    // Adsr(AdsrParameters),
+    // Timer(TimerParameters),
 }
 
 // I don't love this - added because TimerNode needs to be able
