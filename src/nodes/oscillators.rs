@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::vol_smooth;
 
-use super::{Node, SAMPLERATE, Parameter, Message};
+use super::{Node, SAMPLERATE, Message};
 use std::f32::consts::PI;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;

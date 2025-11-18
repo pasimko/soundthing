@@ -4,10 +4,8 @@ mod gui;
 mod nodes;
 
 pub use app::Canvas;
-use crate::nodes::{Parameter, Node, graph};
+use crate::nodes::{Node, graph};
 use gui::create_gui;
-use nodes::oscillators::{SineOsc};
-use nodes::output::{Output};
 use glue::wasm_audio::wasm_audio;
 use wasm_bindgen::prelude::*;
 

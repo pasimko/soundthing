@@ -8,11 +8,10 @@
 // I want it to be owned by the audio thread
 // Nodes are created and modified through message passing
 //  But the graph itself can modify nodes directly (for parameters/inputs, etc)
-use std::collections::HashMap;
 
 use std::sync::mpsc::{channel, Sender, Receiver};
 
-use crate::nodes::{self, Node, output};
+use crate::nodes::{Node, output};
 
 pub struct AudioGraph {
     nodes: Vec<Box<dyn Node>>,
