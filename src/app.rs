@@ -1,8 +1,6 @@
 use std::sync::mpsc::Sender;
-
 use egui::Id;
-
-use crate::nodes::{Message, Parameter, graph::AudioGraphMessage};
+use crate::nodes::{Message, oscillators::SineOsc, Parameter, graph::AudioGraphMessage};
 
 pub struct Canvas {
     graph_handler: Sender<AudioGraphMessage>,
@@ -88,6 +86,12 @@ impl eframe::App for Canvas {
                     });
                     ui.add_space(16.0);
                 }
+                
+                if ui.add(egui::Button::new("Click me")).clicked() {
+
+                    let (new_osc, _) = SineOsc::new("whee");
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                }
 
                 egui::widgets::global_theme_preference_buttons(ui);
             });
@@ -97,7 +101,6 @@ impl eframe::App for Canvas {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("music");
 
-            // ui.separator();
 
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {

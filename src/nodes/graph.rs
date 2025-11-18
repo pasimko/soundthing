@@ -45,15 +45,20 @@ impl AudioGraph {
         // for each node
         for (i, node) in self.nodes.iter_mut().enumerate() {
             let fake_input = [5.];
-            let mut fake_output = [0.];
             let inputs: &[&[f32]] = &[&fake_input];
-            node.process(inputs, &mut fake_output);
+            node.process(inputs, output);
         }
     }
     pub fn get_handle(&self) -> Sender<AudioGraphMessage> {
         self.message_sender.clone()
     }
     fn process_messages(&mut self) {
-        
+        for m in self.message_receiver.try_iter() {
+            match m {
+                AudioGraphMessage::AddNode(node) => {
+                    self.nodes.push(node);
+                },
+            }
+        }
     }
 }
