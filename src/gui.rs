@@ -1,6 +1,9 @@
-use crate::{nodes::Parameter, Canvas};
+use std::sync::mpsc::Sender;
 
-pub fn create_gui(message_handlers: Vec<Parameter>) {
+use crate::{nodes::graph::AudioGraphMessage, Canvas};
+// use crate::AudioGraph::AudioGraphMessage;
+
+pub fn create_gui(graph_handler: Sender<AudioGraphMessage>) {
     use eframe::wasm_bindgen::JsCast as _;
 
     // Redirect `log` message to `console.log` and friends:
@@ -23,7 +26,7 @@ pub fn create_gui(message_handlers: Vec<Parameter>) {
                 canvas,
                 web_options,
                 Box::new(move |_| {
-                    Ok(Box::new(Canvas::new(message_handlers)))
+                    Ok(Box::new(Canvas::new(graph_handler)))
                 }),
             )
             .await;

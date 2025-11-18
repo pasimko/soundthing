@@ -9,6 +9,8 @@ pub mod oscillators;
 // pub mod timer;
 pub mod output;
 
+pub mod graph;
+
 // pub const BUFSIZE: usize = 0x1000;
 // pub const SAMPLESIZE: usize = 0x100;
 pub const SAMPLERATE: usize = 48_000;

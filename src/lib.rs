@@ -1,11 +1,10 @@
 mod app;
 mod glue;
-mod graph;
 mod gui;
 mod nodes;
 
 pub use app::Canvas;
-use crate::nodes::{Parameter, Node};
+use crate::nodes::{Parameter, Node, graph};
 use gui::create_gui;
 use nodes::oscillators::{SineOsc};
 use nodes::output::{Output};
@@ -14,13 +13,11 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub async fn web_main() {
-    let mut output_node = Output::new();
-
-    let mut msg_handlers: Vec<Parameter> = Vec::new();
-
     let graph = graph::AudioGraph::new();
 
-    create_gui(msg_handlers);
+    let graph_handler = graph.get_handle();
+
+    create_gui(graph_handler);
     let ctx = wasm_audio(graph).await.unwrap();
 
     let window = web_sys::window().unwrap();

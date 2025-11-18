@@ -1,20 +1,18 @@
+use std::sync::mpsc::Sender;
+
 use egui::Id;
 
-use crate::nodes::{Message, Parameter};
+use crate::nodes::{Message, Parameter, graph::AudioGraphMessage};
 
 pub struct Canvas {
-    nodes: Vec<Parameter>,
+    graph_handler: Sender<AudioGraphMessage>,
 }
 
 impl Canvas {
     /// Called once before the first frame.
-    pub fn new(nodes: Vec<Parameter>) -> Self {
-        let mut node_parameters = Vec::new();
-        for _ in 0..nodes.len() {
-            node_parameters.push((0, 0));
-        }
+    pub fn new(graph_handler: Sender<AudioGraphMessage>) -> Self {
         Self {
-            nodes,
+            graph_handler,
         }
     }
 }
@@ -99,9 +97,6 @@ impl eframe::App for Canvas {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("music");
 
-            for (i, handler) in self.nodes.iter_mut().enumerate() {
-                render_node(ctx, handler, i);
-            }
             // ui.separator();
 
 
