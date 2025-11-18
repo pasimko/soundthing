@@ -29,7 +29,7 @@ impl AudioGraph {
         let output = Box::new(output::Output::new());
         let (message_sender, message_receiver) = channel();
         Self {
-            nodes: vec![output],
+            nodes: vec![],
             edges: Vec::new(),
             message_sender,
             message_receiver,
@@ -43,8 +43,9 @@ impl AudioGraph {
         // Get all the ones hooked up to the output
         // call process() on each node with the same size as output
         // for each node
+        self.process_messages();
         for (i, node) in self.nodes.iter_mut().enumerate() {
-            let fake_input = [5.];
+            let fake_input = [0.];
             let inputs: &[&[f32]] = &[&fake_input];
             node.process(inputs, output);
         }

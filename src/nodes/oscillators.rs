@@ -28,7 +28,7 @@ impl SineOsc {
     pub fn new(n: &str) -> (Self, OscParameters) {
         let (msg_sender, msg_receiver) = channel();
         let params = OscParameters {
-            freq: 220.,
+            freq: 110.,
             target_vol: 32,
             last_vol: 32. / 100.,
             name: n.to_owned(),
@@ -151,4 +151,24 @@ impl Node for SquareOsc {
             *a = self.phase.round() * (volume as f32 / 100.);
         }
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sine() {
+        let (mut sine_osc, _) = SineOsc::new("whee");
+        let mut output = [0f32; 128];
+        sine_osc.process(&[&[]], &mut output);
+        assert_eq!(output[0], 0.);
+    }
+//            let frequency = self.params.freq;
+//            let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
+//            self.phase += 2. * PI / (SAMPLERATE as f32 / frequency);
+//            self.phase = self.phase.rem_euclid(2. * PI);
+//            *sample = (self.phase).sin() * (volume as f32 / 100.);
+//            self.vol_tick += 1;
 }
