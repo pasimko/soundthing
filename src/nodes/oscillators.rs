@@ -28,8 +28,8 @@ impl SineOsc {
     pub fn new(n: &str) -> (Self, OscParameters) {
         let (msg_sender, msg_receiver) = channel();
         let params = OscParameters {
-            freq: 110.,
-            target_vol: 32,
+            freq: 440.,
+            target_vol: 100,
             last_vol: 32. / 100.,
             name: n.to_owned(),
             sender: msg_sender,
@@ -46,22 +46,22 @@ impl SineOsc {
 
 impl Node for SineOsc {
     fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
-        let msg = self.msg_receiver.try_recv();
-        if let Ok(msg) = msg { match msg {
-            Message::Frequency(val) => self.params.freq = val,
-            Message::Volume(val) => {
-                self.vol_tick = 0;
-                self.params.last_vol = self.params.target_vol as f32 / 100.; // not quite right
-                self.params.target_vol = val;
-            },
-            _ => (),
-        } };
+        // let msg = self.msg_receiver.try_recv();
+        // if let Ok(msg) = msg { match msg {
+        //     Message::Frequency(val) => self.params.freq = val,
+        //     Message::Volume(val) => {
+        //         self.vol_tick = 0;
+        //         self.params.last_vol = self.params.target_vol as f32 / 100.; // not quite right
+        //         self.params.target_vol = val;
+        //     },
+        //     _ => (),
+        // } };
         for sample in output.iter_mut() {
             let frequency = self.params.freq;
-            let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
+            let volume = 100.; //vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
+            *sample = (self.phase).sin() * (volume as f32 / 100.);
             self.phase += 2. * PI / (SAMPLERATE as f32 / frequency);
             self.phase = self.phase.rem_euclid(2. * PI);
-            *sample = (self.phase).sin() * (volume as f32 / 100.);
             self.vol_tick += 1;
         }
     }
@@ -146,29 +146,32 @@ impl Node for SquareOsc {
         for a in output {
             let frequency = self.params.freq;
             let volume = self.params.target_vol;
+            *a = self.phase.round() * (volume as f32 / 100.);
             self.phase += frequency / 48_000.;
             self.phase = self.phase.rem_euclid(1.);
-            *a = self.phase.round() * (volume as f32 / 100.);
         }
     }
 }
 
 
 #[cfg(test)]
+use wasm_bindgen_test::*;
+#[cfg(test)]
 mod tests {
     use super::*;
+    wasm_bindgen_test_configure!(run_in_browser);
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_sine() {
         let (mut sine_osc, _) = SineOsc::new("whee");
         let mut output = [0f32; 128];
         sine_osc.process(&[&[]], &mut output);
         assert_eq!(output[0], 0.);
     }
+}
 //            let frequency = self.params.freq;
 //            let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
 //            self.phase += 2. * PI / (SAMPLERATE as f32 / frequency);
 //            self.phase = self.phase.rem_euclid(2. * PI);
 //            *sample = (self.phase).sin() * (volume as f32 / 100.);
 //            self.vol_tick += 1;
-}

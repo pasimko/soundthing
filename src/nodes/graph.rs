@@ -44,11 +44,15 @@ impl AudioGraph {
         // call process() on each node with the same size as output
         // for each node
         self.process_messages();
-        for (i, node) in self.nodes.iter_mut().enumerate() {
+        for node in self.nodes.iter_mut() {
             let fake_input = [0.];
             let inputs: &[&[f32]] = &[&fake_input];
             node.process(inputs, output);
         }
+        // This *does* work
+        // for (i, sample) in output.iter_mut().enumerate() {
+        //     *sample = ((i as f32 * 440.0 * 2.0 * 3.14159 / 48000.0).sin()) * 0.1;
+        // }
     }
     pub fn get_handle(&self) -> Sender<AudioGraphMessage> {
         self.message_sender.clone()
@@ -60,6 +64,29 @@ impl AudioGraph {
                     self.nodes.push(node);
                 },
             }
+        }
+    }
+}
+
+#[cfg(test)]
+use wasm_bindgen_test::*;
+use crate::nodes::oscillators;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    fn test_add_sine_graph() {
+        let mut graph = AudioGraph::new();
+
+        let graph_handler = graph.get_handle();
+        let (new_osc, _) = oscillators::SineOsc::new("whee");
+        let _ = graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+        let mut output = [0f32; 128];
+        graph.process(&mut output);
+        for sample in output {
+            assert_eq!(sample, 0.);
         }
     }
 }
