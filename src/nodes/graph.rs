@@ -10,6 +10,7 @@
 //  But the graph itself can modify nodes directly (for parameters/inputs, etc)
 
 use std::sync::mpsc::{channel, Sender, Receiver};
+use std::iter::zip;
 
 use crate::nodes::{Node, output};
 
@@ -18,6 +19,7 @@ pub struct AudioGraph {
     edges: Vec<Vec<usize>>,
     message_sender: Sender<AudioGraphMessage>,
     message_receiver: Receiver<AudioGraphMessage>,
+    output_buffer: Vec<f32>,
 }
 
 pub enum AudioGraphMessage {
@@ -33,26 +35,22 @@ impl AudioGraph {
             edges: Vec::new(),
             message_sender,
             message_receiver,
+            output_buffer: Vec::new(),
         }
     }
     pub fn set_root() {
     }
     pub fn process(&mut self, output: &mut [f32]) {
-        // check messages
-        // Get topological sort of nodes
-        // Get all the ones hooked up to the output
-        // call process() on each node with the same size as output
-        // for each node
         self.process_messages();
         for node in self.nodes.iter_mut() {
+            self.output_buffer.resize(output.len(), 0.0);
             let fake_input = [0.];
             let inputs: &[&[f32]] = &[&fake_input];
-            node.process(inputs, output);
+            node.process(inputs, &mut self.output_buffer);
+            zip(self.output_buffer.iter(), output.iter_mut())
+                .for_each(|(i, o)| *o += i );
         }
-        // This *does* work
-        // for (i, sample) in output.iter_mut().enumerate() {
-        //     *sample = ((i as f32 * 440.0 * 2.0 * 3.14159 / 48000.0).sin()) * 0.1;
-        // }
+
     }
     pub fn get_handle(&self) -> Sender<AudioGraphMessage> {
         self.message_sender.clone()
@@ -81,7 +79,7 @@ mod tests {
         let mut graph = AudioGraph::new();
 
         let graph_handler = graph.get_handle();
-        let (new_osc, _) = oscillators::SineOsc::new("whee");
+        let (new_osc, _) = oscillators::SineOsc::new();
         let _ = graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
         let mut output = [0f32; 128];
         graph.process(&mut output);

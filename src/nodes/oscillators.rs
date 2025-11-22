@@ -7,12 +7,60 @@ use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
 #[derive(Debug, Clone)]
+pub struct PhasorParameters {
+    pub freq: f32,
+    pub point: (f32, f32),
+    pub sender: Sender<Message>,
+    pub name: String,
+}
+
+pub struct Phasor {
+    params: PhasorParameters,
+    phase: f32,
+    msg_receiver: Receiver<Message>,
+}
+
+impl Phasor {
+    pub fn new() -> (Self, PhasorParameters) {
+        let (msg_sender, msg_receiver) = channel();
+        let params = PhasorParameters {
+            freq: 440.,
+            sender: msg_sender,
+            name: "Phasor".to_string(),
+            point: (0.5, 0.5),
+        };
+        let handler = params.clone();
+        (Self {
+            params,
+            phase: 0.,
+            msg_receiver,
+        }, handler)
+    }
+}
+
+impl Node for Phasor {
+    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
+        let msg = self.msg_receiver.try_recv();
+        if let Ok(msg) = msg { match msg {
+            Message::Frequency(val) => self.params.freq = val,
+            _ => (),
+        } };
+        for sample in output.iter_mut() {
+            let frequency = self.params.freq;
+            *sample = self.phase;
+            self.phase += 1. / (SAMPLERATE as f32 / frequency);
+            self.phase = self.phase.rem_euclid(self.phase);
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct OscParameters {
     pub freq: f32,
     pub target_vol: u8,
     pub last_vol: f32,
-    pub name: String,
     pub sender: Sender<Message>,
+    pub name: String,
 }
 
 // TODO why did I choose to make Parameters its own
@@ -25,14 +73,14 @@ pub struct SineOsc {
 }
 
 impl SineOsc {
-    pub fn new(n: &str) -> (Self, OscParameters) {
+    pub fn new() -> (Self, OscParameters) {
         let (msg_sender, msg_receiver) = channel();
         let params = OscParameters {
             freq: 440.,
             target_vol: 100,
             last_vol: 32. / 100.,
-            name: n.to_owned(),
             sender: msg_sender,
+            name: "Sine Oscillator".to_string(),
         };
         let handler = params.clone();
         (Self {
@@ -46,19 +94,19 @@ impl SineOsc {
 
 impl Node for SineOsc {
     fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
-        // let msg = self.msg_receiver.try_recv();
-        // if let Ok(msg) = msg { match msg {
-        //     Message::Frequency(val) => self.params.freq = val,
-        //     Message::Volume(val) => {
-        //         self.vol_tick = 0;
-        //         self.params.last_vol = self.params.target_vol as f32 / 100.; // not quite right
-        //         self.params.target_vol = val;
-        //     },
-        //     _ => (),
-        // } };
+        let msg = self.msg_receiver.try_recv();
+        if let Ok(msg) = msg { match msg {
+            Message::Frequency(val) => self.params.freq = val,
+            Message::Volume(val) => {
+                self.vol_tick = 0;
+                self.params.last_vol = self.params.target_vol as f32 / 100.; // not quite right
+                self.params.target_vol = val;
+            },
+            _ => (),
+        } };
         for sample in output.iter_mut() {
             let frequency = self.params.freq;
-            let volume = 100.; //vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
+            let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
             *sample = (self.phase).sin() * (volume as f32 / 100.);
             self.phase += 2. * PI / (SAMPLERATE as f32 / frequency);
             self.phase = self.phase.rem_euclid(2. * PI);
@@ -74,14 +122,14 @@ pub struct SawtoothOsc {
 }
 
 impl SawtoothOsc {
-    pub fn new(n: &str) -> (Self, OscParameters) {
+    pub fn new() -> (Self, OscParameters) {
         let (msg_sender, msg_receiver) = channel();
         let params = OscParameters {
             freq: 220.,
             target_vol: 32,
-            name: n.to_owned(),
             last_vol: 32. / 100.,
             sender: msg_sender,
+            name: "Sawtooth Oscillator".to_string(),
         };
         let handler = params.clone();
         (Self {
@@ -117,14 +165,14 @@ pub struct SquareOsc {
 }
 
 impl SquareOsc {
-    pub fn new(n: &str) -> (Self, OscParameters) {
+    pub fn new() -> (Self, OscParameters) {
         let (msg_sender, msg_receiver) = channel();
         let params = OscParameters {
             freq: 220.,
             target_vol: 32,
             last_vol: 32. / 100.,
-            name: n.to_owned(),
             sender: msg_sender,
+            name: "Square Oscillator".to_string(),
         };
         let handler = params.clone();
         (Self {
@@ -163,15 +211,9 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn test_sine() {
-        let (mut sine_osc, _) = SineOsc::new("whee");
+        let (mut sine_osc, _) = SineOsc::new();
         let mut output = [0f32; 128];
         sine_osc.process(&[&[]], &mut output);
         assert_eq!(output[0], 0.);
     }
 }
-//            let frequency = self.params.freq;
-//            let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
-//            self.phase += 2. * PI / (SAMPLERATE as f32 / frequency);
-//            self.phase = self.phase.rem_euclid(2. * PI);
-//            *sample = (self.phase).sin() * (volume as f32 / 100.);
-//            self.vol_tick += 1;

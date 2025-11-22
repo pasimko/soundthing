@@ -1,6 +1,17 @@
+How should I approach phasor?
+Have it built-in by default, with the option to plug in a phase node?
+Actually - have the option to split the node, becoming a different type of sine osc
+
+I think that edges could be interesting - 
+set a BPM and determine which measures an edge should be active for.
+This would maybe make more sense with a visible output/mixer node.
+
 AudioContext:
-    Thing that fetches audio samples i think
+    thread that calls process() a gajillion times per second
 * Change struct+pointer graph to a struct+index setup
     * rethink how the output node's sample is read
     * pass hashmap and key of output into wasmaudioprocessor
     * WasmAudioProcessor.process() does a DFS/topological sort of the nodes
+
+
+

@@ -1,7 +1,8 @@
 use crate::nodes::{
     // timer::{TimerParameters},
     // adsr::{AdsrParameters},
-    oscillators::{OscParameters}
+    oscillators::{OscParameters},
+    oscillators::{PhasorParameters},
 };
 
 pub mod oscillators;
@@ -23,8 +24,9 @@ pub trait Node {
 // cloned and decoupled from the actual node's parameters
 // but message passing should update them
 #[derive(Clone)]
-pub enum Parameter {
+pub enum NodeParameter {
     Osc(OscParameters),
+    Phasor(PhasorParameters),
     // Adsr(AdsrParameters),
     // Timer(TimerParameters),
 }
