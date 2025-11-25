@@ -1,8 +1,7 @@
 use crate::nodes::{
     // timer::{TimerParameters},
     // adsr::{AdsrParameters},
-    oscillators::{OscParameters},
-    oscillators::{PhasorParameters},
+    oscillators::*,
 };
 
 pub mod oscillators;
@@ -27,6 +26,7 @@ pub trait Node {
 pub enum NodeParameter {
     Osc(OscParameters),
     Phasor(PhasorParameters),
+    PhaselessOsc(PhaselessOscParameters),
     // Adsr(AdsrParameters),
     // Timer(TimerParameters),
 }
@@ -41,6 +41,7 @@ pub enum Message {
     Interval(u32),
     On(bool),
     Volume(u8),
+    Center((f32, f32)),
 }
 
 pub fn vol_smooth(target: f32, start: f32, n: i32) -> f32 {

@@ -12,18 +12,20 @@
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::iter::zip;
 
-use crate::nodes::{Node, output};
+use crate::nodes::{Node, output, NodeParameter};
 
 pub struct AudioGraph {
     nodes: Vec<Box<dyn Node>>,
-    edges: Vec<Vec<usize>>,
+    edges: Vec<Vec<usize>>, // TODO (incoming index, message type)
+    buffers: Vec<Vec<f32>>,
     message_sender: Sender<AudioGraphMessage>,
     message_receiver: Receiver<AudioGraphMessage>,
-    output_buffer: Vec<f32>,
+    // output_buffer: Vec<f32>,
 }
 
 pub enum AudioGraphMessage {
     AddNode(Box<dyn Node>),
+    AddEdge((usize, usize)),
 }
 
 impl AudioGraph {
@@ -33,24 +35,26 @@ impl AudioGraph {
         Self {
             nodes: vec![],
             edges: Vec::new(),
+            buffers: Vec::new(),
             message_sender,
             message_receiver,
-            output_buffer: Vec::new(),
         }
     }
     pub fn set_root() {
     }
     pub fn process(&mut self, output: &mut [f32]) {
         self.process_messages();
-        for node in self.nodes.iter_mut() {
-            self.output_buffer.resize(output.len(), 0.0);
-            let fake_input = [0.];
-            let inputs: &[&[f32]] = &[&fake_input];
-            node.process(inputs, &mut self.output_buffer);
-            zip(self.output_buffer.iter(), output.iter_mut())
-                .for_each(|(i, o)| *o += i );
+        for node_idx in 0..self.nodes.len() {
+            // process all incoming nodes
+            for incoming_node_idx in self.edges[node_idx] {
+                let inputs: &[&[f32]] = &[];
+                self.nodes[incoming_node_idx].process(inputs, self.buffers[incoming_node_idx]);
+            }
+            // construct inputs array
+            self.nodes[node_idx].process(inputs, self.output_buffer);
         }
-
+        zip(self.output_buffer.iter(), output.iter_mut())
+            .for_each(|(i, o)| *o += i );
     }
     pub fn get_handle(&self) -> Sender<AudioGraphMessage> {
         self.message_sender.clone()
@@ -60,7 +64,12 @@ impl AudioGraph {
             match m {
                 AudioGraphMessage::AddNode(node) => {
                     self.nodes.push(node);
+                    self.edges.push(Vec::new());
+                    self.buffers.push(Vec::new());
                 },
+                AudioGraphMessage::AddEdge((i, o)) => {
+                    self.edges[o].push(i);
+                }
             }
         }
     }

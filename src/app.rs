@@ -62,6 +62,14 @@ impl Canvas {
                         }
                     }
                 }
+                NodeParameter::PhaselessOsc(p) => {
+                    let result = egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
+                        let vol_res = ui.add(egui::Slider::new(&mut p.target_vol, 0..=100).text("volume"));
+                        if vol_res.changed() {
+                            p.sender.send(Message::Volume(p.target_vol)).unwrap();
+                        }
+                    });
+                }
                 NodeParameter::Phasor(p) => {
                     let result = egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
                         ui.set_max_width(200.0);
@@ -78,9 +86,9 @@ impl Canvas {
 
                         if let Some(pointer_pos) = response.interact_pointer_pos() {
                             let canvas_pos = from_screen * pointer_pos;
-                            // current_line.push(canvas_pos);
                             p.point.0 = canvas_pos[0];
                             p.point.1 = canvas_pos[1];
+                            p.sender.send(Message::Center(p.point)).unwrap();
                             response.mark_changed();
                         }
 
@@ -95,6 +103,10 @@ impl Canvas {
                             });
 
                         painter.extend(shapes);
+                        let freq_res = ui.add(egui::Slider::new(&mut p.freq, 20.0..=2000.0).text("frequency").logarithmic(true));
+                        if freq_res.changed() {
+                            p.sender.send(Message::Frequency(p.freq)).unwrap();
+                        }
                     });
                 }
                 // Parameter::Adsr(p) => {
@@ -169,6 +181,13 @@ impl eframe::App for Canvas {
                     let (new_osc, new_phasor_handler) = Phasor::new();
                     let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                     self.node_parameters.push(NodeParameter::Phasor(new_phasor_handler));
+                    ui.close();
+                }
+                if ui.button("Phaseless Sine").clicked() {
+                    let (new_osc, new_phasor_handler) = PhaselessSineOsc::new();
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                    self.node_parameters.push(NodeParameter::PhaselessOsc(new_phasor_handler));
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((0, 1)));
                     ui.close();
                 }
                 // if ui.button("Triangle").clicked() {
