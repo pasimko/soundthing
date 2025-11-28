@@ -52,8 +52,8 @@ impl Node for Phasor {
             Message::Center((x, y)) => self.point = (x, y),
             _ => (),
         } };
-        for sample in output.iter_mut() {
-            let frequency = self.params.freq;
+        for sample in output {
+            let frequency = self.freq;
             *sample = self.phase;
             if self.phase < self.point.0 {
                 self.phase += self.point.1 / self.point.0 / (SAMPLERATE as f32 / frequency);
@@ -61,8 +61,7 @@ impl Node for Phasor {
             else {
                 self.phase += self.point.0 / self.point.1 / (SAMPLERATE as f32 / frequency);
             }
-            // self.phase += 1. / (SAMPLERATE as f32 / frequency);
-            self.phase = self.phase.rem_euclid(self.phase);
+            self.phase = self.phase.rem_euclid(1.);
         }
     }
 }
@@ -117,7 +116,7 @@ impl Node for SineOsc {
             },
             _ => (),
         } };
-        for sample in output.iter_mut() {
+        for sample in output {
             let frequency = self.params.freq;
             let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
             *sample = (self.phase).sin() * (volume as f32 / 100.);
@@ -228,6 +227,7 @@ pub struct PhaselessSineOsc {
     params: PhaselessOscParameters,
     vol_tick: u32,
     msg_receiver: Receiver<Message>,
+    phase: f32,
 }
 
 impl PhaselessSineOsc {
@@ -244,6 +244,7 @@ impl PhaselessSineOsc {
             params,
             vol_tick: 0,
             msg_receiver,
+            phase: 0.,
         }, handler)
     }
 }
@@ -259,9 +260,8 @@ impl Node for PhaselessSineOsc {
             },
             _ => (),
         } };
-        let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
-        output.iter_mut().zip(inputs[0].iter())
-            .for_each(|(o, &i)| *o = i.sin() * (volume as f32 / 100.));
+        // let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
+        output.iter_mut().zip(inputs[0].iter()).for_each(|(o, &i)| *o = i.sin()); // * (self.target_vol as f32 / 100.));
     }
 }
 
@@ -276,7 +276,7 @@ mod tests {
     fn test_sine() {
         let (mut sine_osc, _) = SineOsc::new();
         let mut output = [0f32; 128];
-        sine_osc.process(&[&[]], &mut output);
-        assert_eq!(output[0], 0.);
+        sine_osc.process(&[], &mut output);
+        assert_eq!(output[0], 0.); // TODO add more cases lol
     }
 }

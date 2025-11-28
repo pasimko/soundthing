@@ -8,6 +8,9 @@ use egui::{
     pos2,
 };
 
+use wasm_bindgen::JsValue;
+use web_sys::console;
+
 use crate::nodes::{*, oscillators::*, graph::AudioGraphMessage};
 
 pub struct Canvas {
@@ -66,6 +69,7 @@ impl Canvas {
                             p.point.1 = canvas_pos[1];
                             p.sender.send(Message::Center(p.point)).unwrap();
                             response.mark_changed();
+                            console::log_2(&JsValue::from_f64(p.point.0 as f64), &JsValue::from_f64(p.point.1 as f64));
                         }
 
                         let lines = vec![vec![pos2(0., 1.), pos2(p.point.0, p.point.1), pos2(1., 0.)]];
@@ -139,18 +143,21 @@ impl eframe::App for Canvas {
                     let (new_osc, new_osc_handler) = SineOsc::new();
                     let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                     self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
                     ui.close();
                 }
                 if ui.button("Square").clicked() {
                     let (new_osc, new_osc_handler) = SquareOsc::new();
                     let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                     self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
                     ui.close();
                 }
                 if ui.button("Sawtooth").clicked() {
                     let (new_osc, new_osc_handler) = SawtoothOsc::new();
                     let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                     self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
                     ui.close();
                 }
                 if ui.button("Phasor").clicked() {
@@ -163,7 +170,8 @@ impl eframe::App for Canvas {
                     let (new_osc, new_phasor_handler) = PhaselessSineOsc::new();
                     let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                     self.node_parameters.push(NodeParameter::PhaselessOsc(new_phasor_handler));
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((0, 1)));
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((1, 2)));
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
                     ui.close();
                 }
                 // if ui.button("Triangle").clicked() {
@@ -177,10 +185,6 @@ impl eframe::App for Canvas {
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
             });
-
-
-
-
 
             self.render_nodes(ctx);
         });

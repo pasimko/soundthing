@@ -5,11 +5,9 @@ use crate::nodes::{Node, output, NodeParameter};
 
 pub struct AudioGraph {
     nodes: Vec<Box<dyn Node>>,
-    edges: Vec<Vec<usize>>,
-    buffers: Vec<Vec<f32>>,
+    sources: Vec<Vec<usize>>,
     message_sender: Sender<AudioGraphMessage>,
     message_receiver: Receiver<AudioGraphMessage>,
-    // output_buffer: Vec<f32>,
 }
 
 pub enum AudioGraphMessage {
@@ -22,40 +20,40 @@ impl AudioGraph {
         let output = Box::new(output::Output::new());
         let (message_sender, message_receiver) = channel();
         Self {
-            nodes: vec![],
-            edges: Vec::new(),
-            buffers: Vec::new(),
+            nodes: vec![output],
+            sources: vec![Vec::new()],
             message_sender,
             message_receiver,
         }
     }
     pub fn process(&mut self, output: &mut [f32]) {
         self.process_messages();
+        let mut buffers = vec![];
+        for _ in 0..self.nodes.len() {
+            buffers.push(vec![0.; output.len()]);
+        }
 
         // topologically sort nodes
         let mut visited : Vec<bool> = vec![false; self.nodes.len()];
         let mut top_sorted = Vec::new();
-
         while let Some(idx) = visited.iter().position(|i| !i) {
             self.visit(idx, &mut visited, &mut top_sorted);
         }
 
-        for node_idx in top_sorted.iter().rev().cloned() {
-            // construct inputs array
-            let mut inputs: Vec<&[f32]> = Vec::new();
-            for incoming_idx in self.edges[node_idx].iter().cloned() {
-                inputs.push(self.buffers[incoming_idx].as_slice());
+        for node_idx in top_sorted.iter().cloned() {
+            let mut sources: Vec<&[f32]> = Vec::new();
+            for source_idx in self.sources[node_idx].iter().cloned() {
+                sources.push(buffers[source_idx].as_slice());
             }
-            let mut tmp_output = self.buffers[node_idx].clone();
+            let mut tmp_output = buffers[node_idx].clone();
+            self.nodes[node_idx].process(sources.as_slice(), tmp_output.as_mut_slice());
+            zip(buffers[node_idx].iter_mut(), tmp_output.iter())
+                .for_each(|(o, i)| *o = *i);
+        }
 
-            self.nodes[node_idx].process(inputs.as_slice(), tmp_output.as_mut_slice());
-            self.buffers[node_idx] = tmp_output;
-        }
-        // TODO keep track of "leaf" OR add output node (and maybe make it invisible)
-        if let [_, ..] = self.buffers.as_slice() {
-            zip(self.buffers[0].iter(), output.iter_mut())
-                .for_each(|(i, o)| *o = *i);
-        }
+        // // TODO keep track of "leaf" OR add output node (and maybe make it invisible)
+        zip(buffers[0].iter(), output.iter_mut())
+            .for_each(|(i, o)| *o = *i);
     }
     // return indices, topologically reverse-sorted
     fn visit(&self, node_idx: usize, visited: &mut Vec<bool>, top_sorted: &mut Vec<usize>) {
@@ -63,7 +61,7 @@ impl AudioGraph {
             return
         }
         visited[node_idx] = true;
-        self.edges[node_idx].iter().for_each(|idx| self.visit(idx.clone(), visited, top_sorted));
+        self.sources[node_idx].iter().for_each(|idx| self.visit(idx.clone(), visited, top_sorted));
         top_sorted.push(node_idx);
     }
     pub fn get_handle(&self) -> Sender<AudioGraphMessage> {
@@ -74,11 +72,10 @@ impl AudioGraph {
             match m {
                 AudioGraphMessage::AddNode(node) => {
                     self.nodes.push(node);
-                    self.edges.push(Vec::new());
-                    self.buffers.push(Vec::new());
+                    self.sources.push(Vec::new());
                 },
-                AudioGraphMessage::AddEdge((i, o)) => {
-                    self.edges[o].push(i);
+                AudioGraphMessage::AddEdge((source, sink)) => {
+                    self.sources[sink].push(source);
                 }
             }
         }
