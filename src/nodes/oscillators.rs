@@ -49,7 +49,7 @@ impl Node for Phasor {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { match msg {
             Message::Frequency(val) => self.freq = val,
-            Message::Center((x, y)) => self.point = (x, y),
+            Message::Center((x, y)) => self.point = (x, 1.-y),
             _ => (),
         } };
         for sample in output {
@@ -59,7 +59,7 @@ impl Node for Phasor {
                 self.phase += self.point.1 / self.point.0 / (SAMPLERATE as f32 / frequency);
             }
             else {
-                self.phase += self.point.0 / self.point.1 / (SAMPLERATE as f32 / frequency);
+                self.phase += (1.-self.point.0) / (1.-self.point.0) / (SAMPLERATE as f32 / frequency);
             }
             self.phase = self.phase.rem_euclid(1.);
         }
@@ -261,7 +261,7 @@ impl Node for PhaselessSineOsc {
             _ => (),
         } };
         // let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
-        output.iter_mut().zip(inputs[0].iter()).for_each(|(o, &i)| *o = i.sin()); // * (self.target_vol as f32 / 100.));
+        output.iter_mut().zip(inputs[0].iter()).for_each(|(o, &i)| *o = (6.28*i).sin()); // * (self.target_vol as f32 / 100.));
     }
 }
 
