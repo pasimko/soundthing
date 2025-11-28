@@ -37,30 +37,6 @@ impl Canvas {
                             p.sender.send(Message::Volume(p.target_vol)).unwrap();
                         }
                     });
-                    // TODO TEMPORARY 
-                    if let Some(r) = result {
-                        if r.response.contains_pointer() {
-                            ctx.input(|i| {
-                                for &key in i.keys_down.iter() {
-                                    if i.key_pressed(key) {
-                                        p.freq = match key {
-                                            egui::Key::A => 220.,
-                                            egui::Key::S => 220.+110.*1.,
-                                            egui::Key::D => 220.+110.*2.,
-                                            egui::Key::F => 220.+110.*3.,
-                                            egui::Key::G => 220.+110.*4.,
-                                            egui::Key::H => 220.+110.*5.,
-                                            egui::Key::J => 220.+220.*6.,
-                                            egui::Key::K => 220.+220.*7.,
-                                            egui::Key::L => 220.+220.*8.,
-                                            _ => 110.,
-                                        };
-                                        p.sender.send(Message::Frequency(p.freq)).unwrap();
-                                    }
-                                }
-                            });
-                        }
-                    }
                 }
                 NodeParameter::PhaselessOsc(p) => {
                     let result = egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
@@ -210,3 +186,28 @@ impl eframe::App for Canvas {
         });
     }
 }
+    // TODO TEMPORARY 
+//    if let Some(r) = result {
+//        if r.response.contains_pointer() {
+//            ctx.input(|i| {
+//                for &key in i.keys_down.iter() {
+//                    if i.key_pressed(key) {
+//                        p.freq = match key {
+//                            egui::Key::A => 220.,
+//                            egui::Key::S => 220.+110.*1.,
+//                            egui::Key::D => 220.+110.*2.,
+//                            egui::Key::F => 220.+110.*3.,
+//                            egui::Key::G => 220.+110.*4.,
+//                            egui::Key::H => 220.+110.*5.,
+//                            egui::Key::J => 220.+220.*6.,
+//                            egui::Key::K => 220.+220.*7.,
+//                            egui::Key::L => 220.+220.*8.,
+//                            _ => 110.,
+//                        };
+//                        p.sender.send(Message::Frequency(p.freq)).unwrap();
+//                    }
+//                }
+//            });
+//        }
+//    }
+//}

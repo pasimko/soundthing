@@ -1,14 +1,3 @@
-// things im gonna have to do reguarly:
-//   do a dfs/topsort from the root
-//      This is prob the part that needs to be fast
-//   remove from the graph
-//   add to the graph
-//
-//
-// I want it to be owned by the audio thread
-// Nodes are created and modified through message passing
-//  But the graph itself can modify nodes directly (for parameters/inputs, etc)
-
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::iter::zip;
 
@@ -16,7 +5,7 @@ use crate::nodes::{Node, output, NodeParameter};
 
 pub struct AudioGraph {
     nodes: Vec<Box<dyn Node>>,
-    edges: Vec<Vec<usize>>, // TODO (incoming index, message type)
+    edges: Vec<Vec<usize>>,
     buffers: Vec<Vec<f32>>,
     message_sender: Sender<AudioGraphMessage>,
     message_receiver: Receiver<AudioGraphMessage>,
@@ -40,21 +29,42 @@ impl AudioGraph {
             message_receiver,
         }
     }
-    pub fn set_root() {
-    }
     pub fn process(&mut self, output: &mut [f32]) {
         self.process_messages();
-        for node_idx in 0..self.nodes.len() {
-            // process all incoming nodes
-            for incoming_node_idx in self.edges[node_idx] {
-                let inputs: &[&[f32]] = &[];
-                self.nodes[incoming_node_idx].process(inputs, self.buffers[incoming_node_idx]);
-            }
-            // construct inputs array
-            self.nodes[node_idx].process(inputs, self.output_buffer);
+
+        // topologically sort nodes
+        let mut visited : Vec<bool> = vec![false; self.nodes.len()];
+        let mut top_sorted = Vec::new();
+
+        while let Some(idx) = visited.iter().position(|i| !i) {
+            self.visit(idx, &mut visited, &mut top_sorted);
         }
-        zip(self.output_buffer.iter(), output.iter_mut())
-            .for_each(|(i, o)| *o += i );
+
+        for node_idx in top_sorted.iter().rev().cloned() {
+            // construct inputs array
+            let mut inputs: Vec<&[f32]> = Vec::new();
+            for incoming_idx in self.edges[node_idx].iter().cloned() {
+                inputs.push(self.buffers[incoming_idx].as_slice());
+            }
+            let mut tmp_output = self.buffers[node_idx].clone();
+
+            self.nodes[node_idx].process(inputs.as_slice(), tmp_output.as_mut_slice());
+            self.buffers[node_idx] = tmp_output;
+        }
+        // TODO keep track of "leaf" OR add output node (and maybe make it invisible)
+        if let [_, ..] = self.buffers.as_slice() {
+            zip(self.buffers[0].iter(), output.iter_mut())
+                .for_each(|(i, o)| *o = *i);
+        }
+    }
+    // return indices, topologically reverse-sorted
+    fn visit(&self, node_idx: usize, visited: &mut Vec<bool>, top_sorted: &mut Vec<usize>) {
+        if visited[node_idx] {
+            return
+        }
+        visited[node_idx] = true;
+        self.edges[node_idx].iter().for_each(|idx| self.visit(idx.clone(), visited, top_sorted));
+        top_sorted.push(node_idx);
     }
     pub fn get_handle(&self) -> Sender<AudioGraphMessage> {
         self.message_sender.clone()
@@ -93,7 +103,7 @@ mod tests {
         let mut output = [0f32; 128];
         graph.process(&mut output);
         for sample in output {
-            assert_eq!(sample, 0.);
+            assert_eq!(sample, 0.); // TODO This make this test normal
         }
     }
 }
