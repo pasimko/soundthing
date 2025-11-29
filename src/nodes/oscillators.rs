@@ -89,7 +89,7 @@ impl SineOsc {
         let (msg_sender, msg_receiver) = channel();
         let params = OscParameters {
             freq: 440.,
-            target_vol: 100,
+            target_vol: 1,
             last_vol: 32. / 100.,
             sender: msg_sender,
             name: "Sine Oscillator".to_string(),

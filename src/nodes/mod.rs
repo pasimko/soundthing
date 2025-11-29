@@ -1,11 +1,11 @@
 use crate::nodes::{
     // timer::{TimerParameters},
-    // adsr::{AdsrParameters},
+    adsr::{AdsrParameters},
     oscillators::*,
 };
 
 pub mod oscillators;
-// pub mod adsr;
+pub mod adsr;
 // pub mod timer;
 pub mod output;
 
@@ -27,7 +27,7 @@ pub enum NodeParameter {
     Osc(OscParameters),
     Phasor(PhasorParameters),
     PhaselessOsc(PhaselessOscParameters),
-    // Adsr(AdsrParameters),
+    Adsr(AdsrParameters),
     // Timer(TimerParameters),
 }
 

@@ -11,7 +11,7 @@ use egui::{
 use wasm_bindgen::JsValue;
 use web_sys::console;
 
-use crate::nodes::{*, oscillators::*, graph::AudioGraphMessage};
+use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage};
 
 pub struct Canvas {
     graph_handler: Sender<AudioGraphMessage>,
@@ -39,6 +39,12 @@ impl Canvas {
                         if vol_res.changed() {
                             p.sender.send(Message::Volume(p.target_vol)).unwrap();
                         }
+                        // let stroke = ui.style().interact(&point_response).fg_stroke;
+
+                        let (mut response, painter) =
+                            ui.allocate_painter(ui.available_size_before_wrap(), Sense::drag());
+                        let circle = Shape::circle_stroke(Pos2::new(50., 50.), 10.0, Stroke::new(10.0, Color32::BLACK));
+                        painter.add(circle);
                     });
                 }
                 NodeParameter::PhaselessOsc(p) => {
@@ -89,14 +95,14 @@ impl Canvas {
                         }
                     });
                 }
-                // Parameter::Adsr(p) => {
-                //     egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
-                //         let on = ui.add(egui::Button::new("on"));
-                //         let on = on.hovered();
-                //         p.on = on;
-                //         p.sender.send(Message::On(on)).unwrap();
-                //     });
-                // }
+                NodeParameter::Adsr(p) => {
+                    let result = egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
+                        let on = ui.add(egui::Button::new("on"));
+                        let on = on.hovered();
+                        p.on = on;
+                        p.sender.send(Message::On(on)).unwrap();
+                    });
+                }
                 // Parameter::Timer(p) => {
                 //     egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
                 //         // let on = ui.add(egui::Button::new("on"));
@@ -137,7 +143,7 @@ impl eframe::App for Canvas {
 
             ui.set_max_width(200.0); // To make sure we wrap long text
 
-            ui.menu_button("Add node", |ui| {
+            ui.menu_button("Add oscillator", |ui| {
                 ui.set_width(100.0); // To make sure we wrap long text
                 if ui.button("Sine").clicked() {
                     let (new_osc, new_osc_handler) = SineOsc::new();
@@ -157,29 +163,33 @@ impl eframe::App for Canvas {
                     let (new_osc, new_osc_handler) = SawtoothOsc::new();
                     let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                     self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
-                    ui.close();
-                }
-                if ui.button("Phasor").clicked() {
-                    let (new_osc, new_phasor_handler) = Phasor::new();
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                    self.node_parameters.push(NodeParameter::Phasor(new_phasor_handler));
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 1)));
                     ui.close();
                 }
                 if ui.button("Phaseless Sine").clicked() {
                     let (new_osc, new_phasor_handler) = PhaselessSineOsc::new();
                     let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                     self.node_parameters.push(NodeParameter::PhaselessOsc(new_phasor_handler));
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((1, 2)));
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((1, self.node_parameters.len())));
                     let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
                     ui.close();
                 }
-                // if ui.button("Triangle").clicked() {
-                //     let (new_osc, new_osc_handler) = SineOsc::new("whee");
-                //     let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                //     self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
-                //     ui.close();
-                // }
+            });
+            ui.menu_button("Add controller", |ui| {
+                ui.set_width(100.0); // To make sure we wrap long text
+                if ui.button("Phasor").clicked() {
+                    let (new_osc, new_phasor_handler) = Phasor::new();
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                    self.node_parameters.push(NodeParameter::Phasor(new_phasor_handler));
+                    ui.close();
+                }
+                if ui.button("ADSR").clicked() {
+                    let (new_osc, new_phasor_handler) = AdsrNode::new();
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                    self.node_parameters.push(NodeParameter::Adsr(new_phasor_handler));
+                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
+                    ui.close();
+                }
             });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
