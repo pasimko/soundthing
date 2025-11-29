@@ -1,10 +1,8 @@
-use std::f32::consts::TAU;
 use std::sync::mpsc::Sender;
-use egui::{vec2, Id};
+use egui::Id;
 use egui::{
-    Color32, Context, Frame, Grid, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2,
-    Widget as _, Window, emath,
-    epaint::{self, CubicBezierShape, PathShape, QuadraticBezierShape},
+    Color32, Pos2, Rect, Sense, Shape, Stroke,
+    Widget as _, emath,
     pos2,
 };
 
@@ -41,7 +39,7 @@ impl Canvas {
                         }
                         // let stroke = ui.style().interact(&point_response).fg_stroke;
 
-                        let (mut response, painter) =
+                        let (response, painter) =
                             ui.allocate_painter(ui.available_size_before_wrap(), Sense::drag());
                         let circle = Shape::circle_stroke(Pos2::new(50., 50.), 10.0, Stroke::new(10.0, Color32::BLACK));
                         painter.add(circle);
@@ -78,7 +76,7 @@ impl Canvas {
                             console::log_2(&JsValue::from_f64(p.point.0 as f64), &JsValue::from_f64(p.point.1 as f64));
                         }
 
-                        let lines = vec![vec![pos2(0., 1.), pos2(p.point.0, p.point.1), pos2(1., 0.)]];
+                        let lines = [vec![pos2(0., 1.), pos2(p.point.0, p.point.1), pos2(1., 0.)]];
 
                         let shapes = lines
                             .iter()

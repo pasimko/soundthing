@@ -2,7 +2,6 @@ use super::{Node, Message};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
-use std::iter::zip;
 
 #[derive(Debug, Clone)]
 pub struct AdsrParameters {
@@ -39,10 +38,7 @@ impl AdsrNode {
 impl Node for AdsrNode {
     fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
-        if let Ok(msg) = msg { match msg {
-            Message::On(val) => self.params.on = val,
-            _ => (),
-        } };
+        if let Ok(msg) = msg { if let Message::On(val) = msg { self.params.on = val } };
         if self.params.on {
             output.iter_mut().for_each( |x| *x = 0.);
             for idx in 0..output.len() {

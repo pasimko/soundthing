@@ -1,7 +1,7 @@
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::iter::zip;
 
-use crate::nodes::{Node, output, NodeParameter};
+use crate::nodes::{Node, output};
 
 pub struct AudioGraph {
     nodes: Vec<Box<dyn Node>>,
@@ -61,7 +61,7 @@ impl AudioGraph {
             return
         }
         visited[node_idx] = true;
-        self.sources[node_idx].iter().for_each(|idx| self.visit(idx.clone(), visited, top_sorted));
+        self.sources[node_idx].iter().for_each(|idx| self.visit(*idx, visited, top_sorted));
         top_sorted.push(node_idx);
     }
     pub fn get_handle(&self) -> Sender<AudioGraphMessage> {
@@ -84,7 +84,6 @@ impl AudioGraph {
 
 #[cfg(test)]
 use wasm_bindgen_test::*;
-use crate::nodes::oscillators;
 #[cfg(test)]
 mod tests {
     use super::*;

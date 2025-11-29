@@ -119,7 +119,7 @@ impl Node for SineOsc {
         for sample in output {
             let frequency = self.params.freq;
             let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
-            *sample = (self.phase).sin() * (volume as f32 / 100.);
+            *sample = (self.phase).sin() * (volume / 100.);
             self.phase += 2. * PI / (SAMPLERATE as f32 / frequency);
             self.phase = self.phase.rem_euclid(2. * PI);
             self.vol_tick += 1;
@@ -252,13 +252,10 @@ impl PhaselessSineOsc {
 impl Node for PhaselessSineOsc {
     fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
-        if let Ok(msg) = msg { match msg {
-            Message::Volume(val) => {
-                self.vol_tick = 0;
-                self.params.last_vol = self.params.target_vol as f32 / 100.;
-                self.params.target_vol = val;
-            },
-            _ => (),
+        if let Ok(msg) = msg { if let Message::Volume(val) = msg {
+            self.vol_tick = 0;
+            self.params.last_vol = self.params.target_vol as f32 / 100.;
+            self.params.target_vol = val;
         } };
         // let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
         output.iter_mut().zip(inputs[0].iter()).for_each(|(o, &i)| *o = (6.28*i).sin()); // * (self.target_vol as f32 / 100.));

@@ -47,5 +47,5 @@ pub enum Message {
 pub fn vol_smooth(target: f32, start: f32, n: i32) -> f32 {
     // TODO check if needs to be f64
     let new_vol = target + 0.999_f32.powi(n) * (start - target);
-    return new_vol;
+    new_vol
 }
