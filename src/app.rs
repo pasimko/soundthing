@@ -41,7 +41,7 @@ impl Canvas {
 
                         let (response, painter) =
                             ui.allocate_painter(ui.available_size_before_wrap(), Sense::drag());
-                        let circle = Shape::circle_stroke(Pos2::new(50., 50.), 10.0, Stroke::new(10.0, Color32::BLACK));
+                        let circle = Shape::circle_stroke(Pos2::new(500., 500.), 100.0, Stroke::new(10.0, Color32::BLACK));
                         painter.add(circle);
                     });
                 }
@@ -139,55 +139,57 @@ impl eframe::App for Canvas {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("music");
 
-            ui.set_max_width(200.0); // To make sure we wrap long text
+            // ui.set_max_width(200.0); // To make sure we wrap long text
 
-            ui.menu_button("Add oscillator", |ui| {
-                ui.set_width(100.0); // To make sure we wrap long text
-                if ui.button("Sine").clicked() {
-                    let (new_osc, new_osc_handler) = SineOsc::new();
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                    self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
-                    ui.close();
-                }
-                if ui.button("Square").clicked() {
-                    let (new_osc, new_osc_handler) = SquareOsc::new();
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                    self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
-                    ui.close();
-                }
-                if ui.button("Sawtooth").clicked() {
-                    let (new_osc, new_osc_handler) = SawtoothOsc::new();
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                    self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 1)));
-                    ui.close();
-                }
-                if ui.button("Phaseless Sine").clicked() {
-                    let (new_osc, new_phasor_handler) = PhaselessSineOsc::new();
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                    self.node_parameters.push(NodeParameter::PhaselessOsc(new_phasor_handler));
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((1, self.node_parameters.len())));
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
-                    ui.close();
-                }
-            });
-            ui.menu_button("Add controller", |ui| {
-                ui.set_width(100.0); // To make sure we wrap long text
-                if ui.button("Phasor").clicked() {
-                    let (new_osc, new_phasor_handler) = Phasor::new();
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                    self.node_parameters.push(NodeParameter::Phasor(new_phasor_handler));
-                    ui.close();
-                }
-                if ui.button("ADSR").clicked() {
-                    let (new_osc, new_phasor_handler) = AdsrNode::new();
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                    self.node_parameters.push(NodeParameter::Adsr(new_phasor_handler));
-                    let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
-                    ui.close();
-                }
+            ui.horizontal(|ui| {
+                ui.menu_button("Add oscillator", |ui| {
+                    ui.set_width(100.0); // To make sure we wrap long text
+                    if ui.button("Sine").clicked() {
+                        let (new_osc, new_osc_handler) = SineOsc::new();
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
+                        ui.close();
+                    }
+                    if ui.button("Square").clicked() {
+                        let (new_osc, new_osc_handler) = SquareOsc::new();
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
+                        ui.close();
+                    }
+                    if ui.button("Sawtooth").clicked() {
+                        let (new_osc, new_osc_handler) = SawtoothOsc::new();
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 1)));
+                        ui.close();
+                    }
+                    if ui.button("Phaseless Sine").clicked() {
+                        let (new_osc, new_phasor_handler) = PhaselessSineOsc::new();
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        self.node_parameters.push(NodeParameter::PhaselessOsc(new_phasor_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((1, self.node_parameters.len())));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
+                        ui.close();
+                    }
+                });
+                ui.menu_button("Add controller", |ui| {
+                    ui.set_width(100.0); // To make sure we wrap long text
+                    if ui.button("Phasor").clicked() {
+                        let (new_osc, new_phasor_handler) = Phasor::new();
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        self.node_parameters.push(NodeParameter::Phasor(new_phasor_handler));
+                        ui.close();
+                    }
+                    if ui.button("ADSR").clicked() {
+                        let (new_osc, new_phasor_handler) = AdsrNode::new();
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        self.node_parameters.push(NodeParameter::Adsr(new_phasor_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
+                        ui.close();
+                    }
+                });
             });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
