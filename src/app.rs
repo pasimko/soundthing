@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 use egui::Id;
 use egui::{
-    Color32, Pos2, Rect, Sense, Shape, Stroke,
+    Color32, Pos2, Rect, Sense, Shape, Stroke, Painter,
     Widget as _, emath,
     pos2,
 };
@@ -24,7 +24,9 @@ impl Canvas {
             node_parameters: vec!(),
         }
     }
-    pub fn render_nodes(&mut self, ctx: &egui::Context) {
+    pub fn render_nodes(&mut self, ctx: &egui::Context, painter: Painter) {
+        let circle = Shape::circle_stroke(Pos2::new(500., 500.), 100.0, Stroke::new(10.0, Color32::BLACK));
+        painter.add(circle);
         for (idx, p) in self.node_parameters.iter_mut().enumerate() {
             match p {
                 NodeParameter::Osc(p) => {
@@ -39,10 +41,6 @@ impl Canvas {
                         }
                         // let stroke = ui.style().interact(&point_response).fg_stroke;
 
-                        let (response, painter) =
-                            ui.allocate_painter(ui.available_size_before_wrap(), Sense::drag());
-                        let circle = Shape::circle_stroke(Pos2::new(500., 500.), 100.0, Stroke::new(10.0, Color32::BLACK));
-                        painter.add(circle);
                     });
                 }
                 NodeParameter::PhaselessOsc(p) => {
@@ -139,8 +137,6 @@ impl eframe::App for Canvas {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("music");
 
-            // ui.set_max_width(200.0); // To make sure we wrap long text
-
             ui.horizontal(|ui| {
                 ui.menu_button("Add oscillator", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
@@ -196,32 +192,8 @@ impl eframe::App for Canvas {
                 egui::warn_if_debug_build(ui);
             });
 
-            self.render_nodes(ctx);
+            let painter = Painter::new(ctx.clone(), ui.layer_id(), ui.clip_rect());
+            self.render_nodes(ctx, painter);
         });
     }
 }
-    // TODO TEMPORARY 
-//    if let Some(r) = result {
-//        if r.response.contains_pointer() {
-//            ctx.input(|i| {
-//                for &key in i.keys_down.iter() {
-//                    if i.key_pressed(key) {
-//                        p.freq = match key {
-//                            egui::Key::A => 220.,
-//                            egui::Key::S => 220.+110.*1.,
-//                            egui::Key::D => 220.+110.*2.,
-//                            egui::Key::F => 220.+110.*3.,
-//                            egui::Key::G => 220.+110.*4.,
-//                            egui::Key::H => 220.+110.*5.,
-//                            egui::Key::J => 220.+220.*6.,
-//                            egui::Key::K => 220.+220.*7.,
-//                            egui::Key::L => 220.+220.*8.,
-//                            _ => 110.,
-//                        };
-//                        p.sender.send(Message::Frequency(p.freq)).unwrap();
-//                    }
-//                }
-//            });
-//        }
-//    }
-//}
