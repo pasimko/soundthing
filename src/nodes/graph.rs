@@ -1,7 +1,7 @@
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::iter::zip;
 
-use crate::nodes::{Node, output};
+use crate::nodes::{Node};
 
 pub struct AudioGraph {
     nodes: Vec<Box<dyn Node>>,
@@ -17,10 +17,9 @@ pub enum AudioGraphMessage {
 
 impl AudioGraph {
     pub fn new() -> Self {
-        let output = Box::new(output::Output::new());
         let (message_sender, message_receiver) = channel();
         Self {
-            nodes: vec![output],
+            nodes: vec![],
             sources: vec![Vec::new()],
             message_sender,
             message_receiver,
@@ -51,11 +50,13 @@ impl AudioGraph {
                 .for_each(|(o, i)| *o = *i);
         }
 
-        // // TODO keep track of "leaf" OR add output node (and maybe make it invisible)
-        zip(buffers[0].iter(), output.iter_mut())
-            .for_each(|(i, o)| *o = *i);
+        if buffers.len() > 0 {
+            zip(buffers[0].iter(), output.iter_mut())
+                .for_each(|(i, o)| *o = *i);
+        }
     }
-    // return indices, topologically reverse-sorted
+
+    // return indices, topologically sorted
     fn visit(&self, node_idx: usize, visited: &mut Vec<bool>, top_sorted: &mut Vec<usize>) {
         if visited[node_idx] {
             return

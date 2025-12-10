@@ -2,6 +2,7 @@ use crate::nodes::{
     // timer::{TimerParameters},
     adsr::{AdsrParameters},
     oscillators::*,
+    output::*,
 };
 
 pub mod oscillators;
@@ -28,6 +29,7 @@ pub enum NodeParameter {
     Phasor(PhasorParameters),
     PhaselessOsc(PhaselessOscParameters),
     Adsr(AdsrParameters),
+    Output(OutputParameters),
     // Timer(TimerParameters),
 }
 
