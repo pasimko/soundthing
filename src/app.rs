@@ -166,44 +166,45 @@ impl eframe::App for Canvas {
                     if ui.button("Sine").clicked() {
                         let (new_osc, new_osc_handler) = SineOsc::new();
 
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
-
                         self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
                         self.sources.push((self.node_parameters.len()-1, 0));
+
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
 
                         ui.close();
                     }
                     if ui.button("Square").clicked() {
                         let (new_osc, new_osc_handler) = SquareOsc::new();
 
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
-
                         self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
                         self.sources.push((self.node_parameters.len()-1, 0));
+
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
 
                         ui.close();
                     }
                     if ui.button("Sawtooth").clicked() {
                         let (new_osc, new_osc_handler) = SawtoothOsc::new();
 
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 1)));
-
                         self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
                         self.sources.push((self.node_parameters.len()-1, 0));
+
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
                         ui.close();
                     }
                     if ui.button("Phaseless Sine").clicked() {
                         let (new_osc, new_phasor_handler) = PhaselessSineOsc::new();
 
+                        self.node_parameters.push(NodeParameter::PhaselessOsc(new_phasor_handler));
+                        self.sources.push((self.node_parameters.len()-1, 0));
+
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((1, self.node_parameters.len()-1)));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
 
-                        self.node_parameters.push(NodeParameter::PhaselessOsc(new_phasor_handler));
-                        self.sources.push((self.node_parameters.len()-1, 0));
                         ui.close();
                     }
                 });
