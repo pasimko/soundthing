@@ -18,6 +18,12 @@ AudioContext:
 A DSL would be cool. Start out as bytecode.
 
 TODO:
+  * Edge adding
+    pieces:
+        nodes: have numbered parameters
+        graph: have numbered connections (enum)
+
+    
   * Edge deletion
     * drag over edge?
   * 

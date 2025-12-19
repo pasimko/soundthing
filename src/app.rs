@@ -9,7 +9,8 @@ use egui::{
 use wasm_bindgen::JsValue;
 use web_sys::console;
 
-use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode};
+use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
+phasor::Phasor, phasor::PhaselessSineOsc};
 
 pub struct Canvas {
     graph_handler: Sender<AudioGraphMessage>,
@@ -28,20 +29,40 @@ impl Canvas {
             sources: vec!(),
         }
     }
-    pub fn render_nodes(&mut self, ctx: &egui::Context, painter: Painter) {
+    pub fn render_nodes(&mut self, ctx: &egui::Context) {
         let mut results = vec!();
         for (idx, p) in self.node_parameters.iter_mut().enumerate() {
             match p {
                 NodeParameter::Osc(p) => {
                     let result = egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
-                        let freq_res = ui.add(egui::Slider::new(&mut p.freq, 20.0..=2000.0).text("frequency").logarithmic(true));
-                        let vol_res = ui.add(egui::Slider::new(&mut p.target_vol, 0..=100).text("volume"));
-                        if freq_res.changed() {
-                            p.sender.send(Message::Frequency(p.freq)).unwrap();
-                        }
-                        if vol_res.changed() {
-                            p.sender.send(Message::Volume(p.target_vol)).unwrap();
-                        }
+                        // TODO
+                        // phase control node
+                        // 
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                if ui.add(egui::Button::new("phase")).clicked() {
+                                    // connection mode
+                                }
+                                if ui.add(egui::Button::new("phase")).clicked() {
+                                    // connection mode
+                                }
+                            });
+                            ui.vertical(|ui| {
+                                let freq_res = ui.add(egui::Slider::new(&mut p.freq, 20.0..=2000.0).text("frequency").logarithmic(true));
+                                let vol_res = ui.add(egui::Slider::new(&mut p.target_vol, 0..=100).text("volume"));
+                                if freq_res.changed() {
+                                    p.sender.send(Message::Frequency(p.freq)).unwrap();
+                                }
+                                if vol_res.changed() {
+                                    p.sender.send(Message::Volume(p.target_vol)).unwrap();
+                                }
+                            });
+                            ui.vertical(|ui| {
+                                if ui.add(egui::Button::new("out")).clicked() {
+                                    // connector mode
+                                }
+                            });
+                        });
                     });
                     results.push(result);
                 }
@@ -231,7 +252,7 @@ impl eframe::App for Canvas {
             });
 
             let painter = Painter::new(ctx.clone(), ui.layer_id(), ui.clip_rect());
-            self.render_nodes(ctx, painter);
+            self.render_nodes(ctx);
         });
     }
 }

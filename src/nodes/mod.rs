@@ -3,12 +3,14 @@ use crate::nodes::{
     adsr::{AdsrParameters},
     oscillators::*,
     output::*,
+    phasor::*,
 };
 
 pub mod oscillators;
 pub mod adsr;
 // pub mod timer;
 pub mod output;
+pub mod phasor;
 
 pub mod graph;
 
@@ -18,6 +20,7 @@ pub const SAMPLERATE: usize = 48_000;
 
 pub trait Node {
     fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]);
+    // fn get_params(&self) -> Vec<UiParam>;
 }
 
 // used by UI to display the parameters of a node
@@ -38,9 +41,8 @@ pub enum NodeParameter {
 // TODO move to individual node
 #[derive(Clone)]
 pub enum Message {
-    Duration(u32),
     Frequency(f32),
-    Interval(u32),
+    Phase(f32),
     On(bool),
     Volume(u8),
     Center((f32, f32)),
