@@ -4,7 +4,7 @@ mod gui;
 mod nodes;
 
 pub use app::Canvas;
-use crate::nodes::{Node, graph};
+use crate::nodes::graph;
 use gui::create_gui;
 use glue::wasm_audio::wasm_audio;
 use wasm_bindgen::prelude::*;

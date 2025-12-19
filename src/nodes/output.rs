@@ -3,12 +3,8 @@
 //
 
 use std::iter::zip;
-use std::sync::mpsc::Sender;
-use super::{Node, SAMPLERATE, Message};
+use super::Node;
 
-use std::f32::consts::PI;
-use std::sync::mpsc::channel;
-use std::sync::mpsc::Receiver;
 
 
 #[allow(dead_code)]

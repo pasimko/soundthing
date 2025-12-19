@@ -50,7 +50,7 @@ impl AudioGraph {
                 .for_each(|(o, i)| *o = *i);
         }
 
-        if buffers.len() > 0 {
+        if !buffers.is_empty() {
             zip(buffers[0].iter(), output.iter_mut())
                 .for_each(|(i, o)| *o = *i);
         }
