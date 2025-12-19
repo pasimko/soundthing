@@ -1,4 +1,5 @@
 use std::sync::mpsc::Sender;
+use super::graph;
 use egui::Id;
 use egui::{
     Color32, Pos2, Rect, Sense, Shape, Stroke, Painter,
@@ -191,7 +192,11 @@ impl eframe::App for Canvas {
                         self.sources.push((self.node_parameters.len()-1, 0));
 
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
+                        let new_edge = graph::Edge { 
+                            from: (graph::NodeId(self.node_parameters.len()-1), graph::Port(0)), 
+                            to: (graph::NodeId(0), graph::Port(0))
+                        };
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
 
                         ui.close();
                     }
@@ -202,7 +207,6 @@ impl eframe::App for Canvas {
                         self.sources.push((self.node_parameters.len()-1, 0));
 
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
 
                         ui.close();
                     }
@@ -213,7 +217,6 @@ impl eframe::App for Canvas {
                         self.sources.push((self.node_parameters.len()-1, 0));
 
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
                         ui.close();
                     }
                     if ui.button("Phaseless Sine").clicked() {
@@ -223,8 +226,8 @@ impl eframe::App for Canvas {
                         self.sources.push((self.node_parameters.len()-1, 0));
 
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((1, self.node_parameters.len()-1)));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
+                        // let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((1, self.node_parameters.len()-1)));
+                        // let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len()-1, 0)));
 
                         ui.close();
                     }
@@ -241,7 +244,7 @@ impl eframe::App for Canvas {
                         let (new_osc, new_phasor_handler) = AdsrNode::new();
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         self.node_parameters.push(NodeParameter::Adsr(new_phasor_handler));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
+                        // let _ = self.graph_handler.send(AudioGraphMessage::AddEdge((self.node_parameters.len(), 0)));
                         ui.close();
                     }
                 });

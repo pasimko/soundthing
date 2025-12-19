@@ -1,4 +1,4 @@
-use super::{Node, Message};
+use super::{Node, Message, graph};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
@@ -36,14 +36,14 @@ impl AdsrNode {
 }
 
 impl Node for AdsrNode {
-    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { if let Message::On(val) = msg { self.params.on = val } };
         if self.params.on {
             output.iter_mut().for_each( |x| *x = 0.);
             for idx in 0..output.len() {
                 for input in inputs {
-                    output[idx] += input[idx];
+                    output[idx] += input.1[idx];
                 }
             }
             if self.on_count < 100 {

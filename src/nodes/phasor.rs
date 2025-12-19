@@ -1,4 +1,5 @@
 use std::sync::mpsc::Sender;
+use super::graph;
 
 use super::{Node, SAMPLERATE, Message};
 use std::sync::mpsc::channel;
@@ -43,7 +44,7 @@ impl Phasor {
 }
 
 impl Node for Phasor {
-    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { match msg {
             Message::Frequency(val) => self.freq = val,
@@ -101,7 +102,7 @@ impl PhaselessSineOsc {
 }
 
 impl Node for PhaselessSineOsc {
-    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { if let Message::Volume(val) = msg {
             self.vol_tick = 0;
@@ -109,6 +110,6 @@ impl Node for PhaselessSineOsc {
             self.params.target_vol = val;
         } };
         // let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
-        output.iter_mut().zip(inputs[0].iter()).for_each(|(o, &i)| *o = (6.28*i).sin()); // * (self.target_vol as f32 / 100.));
+        output.iter_mut().zip(inputs[0].1.iter()).for_each(|(o, &i)| *o = (6.28*i).sin()); // * (self.target_vol as f32 / 100.));
     }
 }

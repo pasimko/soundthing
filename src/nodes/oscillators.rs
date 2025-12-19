@@ -1,5 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::vol_smooth;
+use crate::nodes::graph;
 
 use super::{Node, SAMPLERATE, Message};
 use std::f32::consts::PI;
@@ -55,10 +56,13 @@ impl SineOsc {
 }
 
 impl Node for SineOsc {
-    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
         if let Ok(msg) = self.msg_receiver.try_recv() {
             self.params.handle_message(msg);
         };
+        // loop through output, creating samples
+        // if there's an input for it, grab it?
+        // not performant but OK for now ig
         for sample in output {
             let frequency = self.params.freq;
             let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
@@ -96,7 +100,7 @@ impl SawtoothOsc {
 }
 
 impl Node for SawtoothOsc {
-    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
         if let Ok(msg) = self.msg_receiver.try_recv() {
             self.params.handle_message(msg);
         };
@@ -136,7 +140,7 @@ impl SquareOsc {
 }
 
 impl Node for SquareOsc {
-    fn process(&mut self, inputs: &[&[f32]], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
         if let Ok(msg) = self.msg_receiver.try_recv() {
             self.params.handle_message(msg);
         };

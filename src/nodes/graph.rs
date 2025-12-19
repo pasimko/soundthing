@@ -3,16 +3,29 @@ use std::iter::zip;
 
 use crate::nodes::{Node};
 
+// TODO add index trait
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NodeId(pub usize);
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Port(pub u16);
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Edge {
+    pub from: (NodeId, Port),
+    pub to: (NodeId, Port),
+}
+
 pub struct AudioGraph {
     nodes: Vec<Box<dyn Node>>,
-    sources: Vec<Vec<usize>>,
+    incoming_edges: Vec<Vec<Edge>>, // Each node keeps track of its incoming edges
     message_sender: Sender<AudioGraphMessage>,
     message_receiver: Receiver<AudioGraphMessage>,
 }
 
 pub enum AudioGraphMessage {
     AddNode(Box<dyn Node>),
-    AddEdge((usize, usize)),
+    AddEdge(Edge),
 }
 
 impl AudioGraph {
@@ -20,7 +33,7 @@ impl AudioGraph {
         let (message_sender, message_receiver) = channel();
         Self {
             nodes: vec![],
-            sources: vec![Vec::new()],
+            incoming_edges: vec![Vec::new()],
             message_sender,
             message_receiver,
         }
@@ -40,9 +53,12 @@ impl AudioGraph {
         }
 
         for node_idx in top_sorted.iter().cloned() {
-            let mut sources: Vec<&[f32]> = Vec::new();
-            for source_idx in self.sources[node_idx].iter().cloned() {
-                sources.push(buffers[source_idx].as_slice());
+            let mut sources: Vec<(Port, &[f32])> = Vec::new();
+            for edge in self.incoming_edges[node_idx].iter().cloned() {
+                let source_idx = edge.from.0;
+                let source_port = edge.from.1;
+                let sink_port = edge.to.1;
+                sources.push((sink_port, buffers[source_idx.0].as_slice()));
             }
             let mut tmp_output = buffers[node_idx].clone();
             self.nodes[node_idx].process(sources.as_slice(), tmp_output.as_mut_slice());
@@ -62,7 +78,7 @@ impl AudioGraph {
             return
         }
         visited[node_idx] = true;
-        self.sources[node_idx].iter().for_each(|idx| self.visit(*idx, visited, top_sorted));
+        self.incoming_edges[node_idx].iter().for_each(|edge| self.visit(edge.from.0.0, visited, top_sorted));
         top_sorted.push(node_idx);
     }
     pub fn get_handle(&self) -> Sender<AudioGraphMessage> {
@@ -73,10 +89,12 @@ impl AudioGraph {
             match m {
                 AudioGraphMessage::AddNode(node) => {
                     self.nodes.push(node);
-                    self.sources.push(Vec::new());
+                    self.incoming_edges.push(Vec::new());
                 },
-                AudioGraphMessage::AddEdge((source, sink)) => {
-                    self.sources[sink].push(source);
+                AudioGraphMessage::AddEdge(edge) => {
+                    self.incoming_edges[edge.to.0.0].push(edge); // look at this shit man this is
+                                                                 // humiliating you gotta make this
+                                                                 // indexable ASAP
                 }
             }
         }
