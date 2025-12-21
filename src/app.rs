@@ -11,6 +11,7 @@ use wasm_bindgen::JsValue;
 use web_sys::console;
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
+math::MathNode,
 phasor::Phasor, phasor::PhaselessSineOsc};
 
 enum Mode {
@@ -52,6 +53,7 @@ impl Canvas {
             current_mode: Mode::Normal,
         }
     }
+    // TODO make this not 1000 lines long
     pub fn render_nodes(&mut self, ctx: &egui::Context) {
         let mut responses: Vec<PortResponses> = vec!();
         for (idx, p) in self.node_parameters.iter_mut().enumerate() {
@@ -185,7 +187,6 @@ impl Canvas {
                             p.point.1 = canvas_pos[1];
                             p.sender.send(Message::Center(p.point)).unwrap();
                             response.mark_changed();
-                            console::log_2(&JsValue::from_f64(p.point.0 as f64), &JsValue::from_f64(p.point.1 as f64));
                         }
 
                         // Draw phase bender graph
@@ -215,6 +216,95 @@ impl Canvas {
                     });
                     // results.push(result);
                 }
+                NodeParameter::Math(p) => {
+                    egui::Window::new("Math").id(Id::new(idx)).show(ctx, |ui| {
+                        ui.horizontal(|ui| {
+                            // port buttons
+                            ui.vertical(|ui| {
+                                let a_button_response = ui.add(egui::Button::new("a"));
+                                if a_button_response.clicked() {
+                                    match self.current_mode {
+                                        Mode::SelectSink(node_id, port) => {
+                                            let new_edge = graph::Edge { 
+                                                from: (node_id, port), 
+                                                to: (graph::NodeId(idx), graph::PortId(0)),
+                                            };
+
+                                            self.incoming_edges.push(new_edge.clone());
+                                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
+                                            self.current_mode = Mode::Normal;
+                                        },
+                                        Mode::Normal => { 
+                                            self.current_mode = Mode::SelectSource(graph::NodeId(idx), graph::PortId(0));
+                                        },
+                                        _ => {}
+                                    }
+                                }
+                                port_responses.inputs.push(a_button_response);
+
+                                let b_button_response = ui.add(egui::Button::new("b"));
+                                if b_button_response.clicked() {
+                                    match self.current_mode {
+                                        Mode::SelectSink(node_id, port) => {
+                                            let new_edge = graph::Edge { 
+                                                from: (node_id, port), 
+                                                to: (graph::NodeId(idx), graph::PortId(1)),
+                                            };
+                                            self.incoming_edges.push(new_edge.clone());
+                                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
+                                            self.current_mode = Mode::Normal;
+                                        },
+                                        Mode::Normal => { 
+                                            self.current_mode = Mode::SelectSource(graph::NodeId(idx), graph::PortId(1));
+                                        },
+                                        _ => {}
+                                    }
+                                }
+                                port_responses.inputs.push(b_button_response);
+                            });
+
+                            let op = match p.operation {
+                                math::Operation::Add => "+",
+                                math::Operation::Mul => "*",
+                                math::Operation::Exp => "^",
+                            };
+                            ui.vertical(|ui| {
+                                let a_res = ui.add_enabled(true, egui::DragValue::new(&mut p.a));
+                                ui.menu_button(op, |ui| {
+                                    ui.set_width(100.0); // To make sure we wrap long text
+                                    if ui.button("+").clicked() {
+                                        p.operation = math::Operation::Add;
+                                        let _ = p.sender.send(Message::Operation(math::Operation::Add));
+                                    }
+                                    if ui.button("*").clicked() {
+                                        p.operation = math::Operation::Mul;
+                                        let _ = p.sender.send(Message::Operation(math::Operation::Mul));
+                                    }
+                                    if ui.button("^").clicked() {
+                                        p.operation = math::Operation::Exp;
+                                        let _ = p.sender.send(Message::Operation(math::Operation::Exp));
+                                    }
+                                });
+                                let b_res = ui.add_enabled(true, egui::DragValue::new(&mut p.b));
+                                if a_res.changed() {
+                                    let _ = p.sender.send(Message::SetA(p.a));
+                                }
+                                if b_res.changed() {
+                                    let _ = p.sender.send(Message::SetB(p.b));
+                                }
+                            });
+                            // output ports
+                            ui.vertical(|ui| {
+                                let out_button_response = ui.add(egui::Button::new("out"));
+                                if out_button_response.clicked() {
+                                    self.current_mode = Mode::SelectSink(graph::NodeId(idx), graph::PortId(0));
+                                }
+                                port_responses.outputs.push(out_button_response);
+                            });
+                        });
+                    });
+                    responses.push(port_responses);
+                }
                 NodeParameter::Output(p) => {
                     egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
                         ui.vertical(|ui| {
@@ -229,12 +319,11 @@ impl Canvas {
 
                                         self.incoming_edges.push(new_edge.clone());
                                         let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
-                                        console::log_2(&JsValue::from_f64(node_id.0 as f64), &JsValue::from_f64(idx as f64));
                                         self.current_mode = Mode::Normal;
                                     },
                                     Mode::Normal => {
-
-                                    }, // switch to selectSource
+                                        self.current_mode = Mode::SelectSource(graph::NodeId(idx), graph::PortId(0));
+                                    },
                                     _ => {}
                                 }
                             }
@@ -243,14 +332,6 @@ impl Canvas {
                     });
                     responses.push(port_responses);
                 }
-                // Parameter::Timer(p) => {
-                //     egui::Window::new(&p.name).id(Id::new(id)).show(ctx, |ui| {
-                //         // let on = ui.add(egui::Button::new("on"));
-                //         // let on = on.hovered();
-                //         // p.on = on;
-                //         // p.sender.send(AdsrMessage::On(on)).unwrap();
-                //     });
-                // }
             }
         }
         let painter = ctx.layer_painter(egui::LayerId::background());
@@ -330,19 +411,28 @@ impl eframe::App for Canvas {
                 ui.menu_button("Add oscillator", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
                     if ui.button("Sine").clicked() {
-                        let (new_osc, new_osc_handler) = Osc::new();
+                        let (new_osc, new_osc_handler) = OscNode::new();
                         self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        ui.close();
-                    }
-                    if ui.button("Phaseless Sine").clicked() {
-                        let (new_osc, new_phasor_handler) = PhaselessSineOsc::new();
-                        self.node_parameters.push(NodeParameter::PhaselessOsc(new_phasor_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }
                 });
 
+                ui.menu_button("Numeric", |ui| {
+                    ui.set_width(100.0); // To make sure we wrap long text
+                    if ui.button("Math").clicked() {
+                        let (new_node, node_handler) = MathNode::new();
+                        self.node_parameters.push(NodeParameter::Math(node_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_node)));
+                        ui.close();
+                    }
+                    if ui.button("ADSR").clicked() {
+                        let (new_osc, new_phasor_handler) = AdsrNode::new();
+                        self.node_parameters.push(NodeParameter::Adsr(new_phasor_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        ui.close();
+                    }
+                });
                 ui.menu_button("Add controller", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
                     if ui.button("Phasor").clicked() {
@@ -358,6 +448,7 @@ impl eframe::App for Canvas {
                         ui.close();
                     }
                 });
+
             });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -366,13 +457,12 @@ impl eframe::App for Canvas {
 
             self.render_nodes(ctx);
         });
-        // TODO also maybe make drags delete edges?
+        // TODO hotkeys here?
         if ctx.input(|i|
             i.pointer.any_click()) 
             && panel_response.response.contains_pointer() 
             && !ctx.is_using_pointer() 
         {
-            web_sys::console::log_1(&wasm_bindgen::JsValue::from_str("what"));
             self.current_mode = Mode::Normal;
         }
     }

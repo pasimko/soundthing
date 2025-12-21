@@ -4,6 +4,7 @@ use crate::nodes::{
     output::*,
     phasor::*,
     graph::{PortId},
+    math::*,
 };
 
 pub mod oscillators;
@@ -11,6 +12,7 @@ pub mod adsr;
 // pub mod timer;
 pub mod output;
 pub mod phasor;
+pub mod math;
 
 pub mod graph;
 
@@ -32,12 +34,12 @@ pub enum NodeParameter {
     PhaselessOsc(PhaselessOscParameters),
     Adsr(AdsrParameters),
     Output(OutputParameters),
-    // Timer(TimerParameters),
+    Math(MathParameters),
 }
 
 // I don't love this - added because TimerNode needs to be able
 // to send a message to any Node and this seemed simplest
-// TODO move to individual node
+// TODO split up this god enum
 #[derive(Clone)]
 pub enum Message {
     Frequency(f32),
@@ -46,11 +48,14 @@ pub enum Message {
     Volume(u8),
     Center((f32, f32)),
     Waveform(oscillators::Waveform),
+    SetA(f32),
+    SetB(f32),
+    Operation(math::Operation),
 }
 
 
 pub fn vol_smooth(target: f32, start: f32, n: i32) -> f32 {
-    // TODO check if needs to be f64
+// TODO check if needs to be f64
     
     target + 0.999_f32.powi(n) * (start - target)
 }

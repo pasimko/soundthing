@@ -35,14 +35,14 @@ impl OscParameters {
     }
 }
 
-pub struct Osc {
+pub struct OscNode {
     params: OscParameters,
     phase: f32,
     vol_tick: u32,
     msg_receiver: Receiver<Message>,
 }
 
-impl Osc {
+impl OscNode {
     pub fn new() -> (Self, OscParameters) {
         let (msg_sender, msg_receiver) = channel();
         let params = OscParameters {
@@ -62,7 +62,7 @@ impl Osc {
     }
 }
 
-impl Node for Osc {
+impl Node for OscNode {
     fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
         if let Ok(msg) = self.msg_receiver.try_recv() {
             self.params.handle_message(msg);
@@ -121,7 +121,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn test_sine() {
-        let (mut sine_osc, _) = Osc::new();
+        let (mut sine_osc, _) = OscNode::new();
         let mut output = [0f32; 128];
         sine_osc.process(&[], &mut output);
         assert_eq!(output[0], 0.); // TODO add more cases lol
