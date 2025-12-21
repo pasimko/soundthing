@@ -8,12 +8,20 @@ use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
 #[derive(Debug, Clone)]
+pub enum Waveform {
+    Sine,
+    Square,
+    Tri,
+    Saw,
+}
+
+#[derive(Debug, Clone)]
 pub struct OscParameters {
     pub freq: f32,
     pub target_vol: u8,
     pub last_vol: f32,
     pub sender: Sender<Message>,
-    pub name: String,
+    pub waveform: Waveform,
 }
 
 impl OscParameters {
@@ -21,21 +29,20 @@ impl OscParameters {
         match msg {
             Message::Frequency(val) => self.freq = val,
             Message::Volume(val) => self.target_vol = val,
+            Message::Waveform(val) => self.waveform = val,
             _ => (),
         }
     }
 }
 
-// TODO why did I choose to make Parameters its own
-// thing? OR why did I choose to have phase/vol_tick on their own??
-pub struct SineOsc {
+pub struct Osc {
     params: OscParameters,
     phase: f32,
     vol_tick: u32,
     msg_receiver: Receiver<Message>,
 }
 
-impl SineOsc {
+impl Osc {
     pub fn new() -> (Self, OscParameters) {
         let (msg_sender, msg_receiver) = channel();
         let params = OscParameters {
@@ -43,7 +50,7 @@ impl SineOsc {
             target_vol: 1,
             last_vol: 32. / 100.,
             sender: msg_sender,
-            name: "Sine Oscillator".to_string(),
+            waveform: Waveform::Sine,
         };
         let handler = params.clone();
         (Self {
@@ -55,101 +62,52 @@ impl SineOsc {
     }
 }
 
-impl Node for SineOsc {
+impl Node for Osc {
     fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
         if let Ok(msg) = self.msg_receiver.try_recv() {
             self.params.handle_message(msg);
         };
-        // loop through output, creating samples
-        // if there's an input for it, grab it?
-        // not performant but OK for now ig
-        for sample in output {
-            let frequency = self.params.freq;
-            let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
-            *sample = (self.phase).sin() * (volume / 100.);
-            self.phase += 2. * PI / (SAMPLERATE as f32 / frequency);
-            self.phase = self.phase.rem_euclid(2. * PI);
-            self.vol_tick += 1;
+        // If we have inputs, use these buffers
+        let mut freq_buf = None;
+        let mut vol_buf = None;
+        for (port, buffer) in inputs {
+            // FRAGILE: These have to match the order the ports are declared in the UI
+            // A possible future solution will have something like PortType rather than
+            // portId, but I am concerned that I might want to have one node with duplicate
+            // inputs in the future, so I'm not doing that yet
+            match port.0 {
+                0 => freq_buf = Some(buffer),
+                1 => vol_buf = Some(buffer),
+                _ => {}
+            }
         }
-    }
-}
+        for i in 0..output.len() {
+            let freq = freq_buf
+                .map(|b| b[i])
+                .unwrap_or(self.params.freq);
 
-pub struct SawtoothOsc {
-    params: OscParameters,
-    phase: f32,
-    msg_receiver: Receiver<Message>,
-}
+            let vol = vol_buf
+                .map(|b| b[i])
+                .unwrap_or(self.params.target_vol as f32);
 
-impl SawtoothOsc {
-    pub fn new() -> (Self, OscParameters) {
-        let (msg_sender, msg_receiver) = channel();
-        let params = OscParameters {
-            freq: 220.,
-            target_vol: 32,
-            last_vol: 32. / 100.,
-            sender: msg_sender,
-            name: "Sawtooth Oscillator".to_string(),
-        };
-        let handler = params.clone();
-        (Self {
-            params,
-            phase: 0.,
-            msg_receiver,
-        }, handler)
-    }
-}
-
-impl Node for SawtoothOsc {
-    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
-        if let Ok(msg) = self.msg_receiver.try_recv() {
-            self.params.handle_message(msg);
-        };
-        for a in output {
-            let frequency = self.params.freq;
-            let volume = self.params.target_vol;
-            self.phase += frequency / 48_000.;
-            self.phase = self.phase.rem_euclid(2.);
-            *a = (self.phase - 1.) * (volume as f32 / 100.);
-        }
-    }
-}
-
-pub struct SquareOsc {
-    params: OscParameters,
-    phase: f32,
-    msg_receiver: Receiver<Message>,
-}
-
-impl SquareOsc {
-    pub fn new() -> (Self, OscParameters) {
-        let (msg_sender, msg_receiver) = channel();
-        let params = OscParameters {
-            freq: 220.,
-            target_vol: 32,
-            last_vol: 32. / 100.,
-            sender: msg_sender,
-            name: "Square Oscillator".to_string(),
-        };
-        let handler = params.clone();
-        (Self {
-            params,
-            phase: 0.,
-            msg_receiver,
-        }, handler)
-    }
-}
-
-impl Node for SquareOsc {
-    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
-        if let Ok(msg) = self.msg_receiver.try_recv() {
-            self.params.handle_message(msg);
-        };
-        for a in output {
-            let frequency = self.params.freq;
-            let volume = self.params.target_vol;
-            *a = self.phase.round() * (volume as f32 / 100.);
-            self.phase += frequency / 48_000.;
-            self.phase = self.phase.rem_euclid(1.);
+            match self.params.waveform {
+                Waveform::Sine => {
+                    output[i] = self.phase.sin() * (vol / 100.0);
+                    self.phase += 2.0 * PI * freq / SAMPLERATE as f32;
+                    self.phase = self.phase.rem_euclid(2.0 * PI);
+                },
+                Waveform::Saw => {
+                    output[i] = (self.phase - 1.) * (vol as f32 / 100.);
+                    self.phase += freq / SAMPLERATE as f32;
+                    self.phase = self.phase.rem_euclid(2.);
+                },
+                Waveform::Square => {
+                    output[i] = self.phase.round() * (vol as f32 / 100.);
+                    self.phase += freq / SAMPLERATE as f32;
+                    self.phase = self.phase.rem_euclid(1.);
+                }
+                Waveform::Tri => {}
+            }
         }
     }
 }
@@ -163,7 +121,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn test_sine() {
-        let (mut sine_osc, _) = SineOsc::new();
+        let (mut sine_osc, _) = Osc::new();
         let mut output = [0f32; 128];
         sine_osc.process(&[], &mut output);
         assert_eq!(output[0], 0.); // TODO add more cases lol

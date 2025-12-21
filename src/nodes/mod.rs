@@ -1,5 +1,4 @@
 use crate::nodes::{
-    // timer::{TimerParameters},
     adsr::{AdsrParameters},
     oscillators::*,
     output::*,
@@ -21,12 +20,11 @@ pub const SAMPLERATE: usize = 48_000;
 
 pub trait Node {
     fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]);
-    // fn get_params(&self) -> Vec<UiParam>;
 }
 
-// used by UI to display the parameters of a node
+/// Used by UI to display the parameters of a node
 // cloned and decoupled from the actual node's parameters
-// but message passing should update them
+// but message passing should keep them synced.
 #[derive(Clone)]
 pub enum NodeParameter {
     Osc(OscParameters),
@@ -47,7 +45,9 @@ pub enum Message {
     On(bool),
     Volume(u8),
     Center((f32, f32)),
+    Waveform(oscillators::Waveform),
 }
+
 
 pub fn vol_smooth(target: f32, start: f32, n: i32) -> f32 {
     // TODO check if needs to be f64

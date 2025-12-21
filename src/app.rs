@@ -58,14 +58,20 @@ impl Canvas {
             let mut port_responses = PortResponses::new();
             match p {
                 NodeParameter::Osc(p) => {
-                    egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
+                    let label = match p.waveform {
+                        Waveform::Saw => "Sawtooth Oscillator",
+                        Waveform::Sine => "Sine Oscillator",
+                        Waveform::Square => "Square Oscillator",
+                        Waveform::Tri => "Triangle Oscillator",
+                    };
+                    egui::Window::new(label).id(Id::new(idx)).show(ctx, |ui| {
                         ui.horizontal(|ui| {
                             // input ports
                             ui.vertical(|ui| {
                                 let frequency_button_response = ui.add(egui::Button::new("frequency"));
                                 if frequency_button_response.clicked() {
                                     match self.current_mode {
-                                        // Create new edge
+                                        // Finish creating new edge
                                         Mode::SelectSink(node_id, port) => {
                                             let new_edge = graph::Edge { 
                                                 from: (node_id, port), 
@@ -75,18 +81,36 @@ impl Canvas {
                                             let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
                                             self.current_mode = Mode::Normal;
                                         },
-                                        // Go to new
+                                        // Start creating new edge
                                         Mode::Normal => {
                                             self.current_mode = Mode::SelectSource(graph::NodeId(idx), graph::PortId(0));
-                                        }, // switch to selectSource
+                                        },
                                         _ => {}
                                     }
                                 }
                                 port_responses.inputs.push(frequency_button_response);
 
-                                if ui.add(egui::Button::new("volume")).clicked() {
-                                    // connection mode
+                                let volume_button_response = ui.add(egui::Button::new("volume"));
+                                if volume_button_response.clicked() {
+                                    match self.current_mode {
+                                        // Finish creating new edge
+                                        Mode::SelectSink(node_id, port) => {
+                                            let new_edge = graph::Edge { 
+                                                from: (node_id, port), 
+                                                to: (graph::NodeId(idx), graph::PortId(1)),
+                                            };
+                                            self.incoming_edges.push(new_edge.clone());
+                                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
+                                            self.current_mode = Mode::Normal;
+                                        },
+                                        // Start creating new edge
+                                        Mode::Normal => {
+                                            self.current_mode = Mode::SelectSource(graph::NodeId(idx), graph::PortId(0));
+                                        },
+                                        _ => {}
+                                    }
                                 }
+                                port_responses.inputs.push(volume_button_response);
                                 if ui.add(egui::Button::new("phase")).clicked() {
                                     // connection mode
                                 }
@@ -94,10 +118,10 @@ impl Canvas {
                             // sliders, other non-port UI stuff
                             ui.vertical(|ui| {
                                 let freq_res = ui.add_enabled(true,
-                                    egui::Slider::new(&mut p.freq, 20.0..=2000.0)
+                                    egui::Slider::new(&mut p.freq, 0.0..=2000.0)
                                         .text("frequency")
                                         .logarithmic(true));
-                                let vol_res = ui.add_enabled(false,
+                                let vol_res = ui.add_enabled(true,
                                     egui::Slider::new(&mut p.target_vol, 0..=100)
                                         .text("volume"));
                                 if freq_res.changed() {
@@ -106,6 +130,21 @@ impl Canvas {
                                 if vol_res.changed() {
                                     let _ = p.sender.send(Message::Volume(p.target_vol));
                                 }
+                                ui.menu_button("waveform", |ui| {
+                                    ui.set_width(100.0); // To make sure we wrap long text
+                                    if ui.button("Sine").clicked() {
+                                        p.waveform = Waveform::Sine;
+                                        let _ = p.sender.send(Message::Waveform(oscillators::Waveform::Sine));
+                                    }
+                                    if ui.button("Square").clicked() {
+                                        p.waveform = Waveform::Square;
+                                        let _ = p.sender.send(Message::Waveform(oscillators::Waveform::Square));
+                                    }
+                                    if ui.button("Saw").clicked() {
+                                        p.waveform = Waveform::Saw;
+                                        let _ = p.sender.send(Message::Waveform(oscillators::Waveform::Saw));
+                                    }
+                                });
                             });
                             // output ports
                             ui.vertical(|ui| {
@@ -291,19 +330,7 @@ impl eframe::App for Canvas {
                 ui.menu_button("Add oscillator", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
                     if ui.button("Sine").clicked() {
-                        let (new_osc, new_osc_handler) = SineOsc::new();
-                        self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        ui.close();
-                    }
-                    if ui.button("Square").clicked() {
-                        let (new_osc, new_osc_handler) = SquareOsc::new();
-                        self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        ui.close();
-                    }
-                    if ui.button("Sawtooth").clicked() {
-                        let (new_osc, new_osc_handler) = SawtoothOsc::new();
+                        let (new_osc, new_osc_handler) = Osc::new();
                         self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
