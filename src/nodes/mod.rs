@@ -4,7 +4,7 @@ use crate::nodes::{
     oscillators::*,
     output::*,
     phasor::*,
-    graph::{Port},
+    graph::{PortId},
 };
 
 pub mod oscillators;
@@ -20,7 +20,7 @@ pub mod graph;
 pub const SAMPLERATE: usize = 48_000;
 
 pub trait Node {
-    fn process(&mut self, inputs: &[(Port, &[f32])], output: &mut [f32]);
+    fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]);
     // fn get_params(&self) -> Vec<UiParam>;
 }
 

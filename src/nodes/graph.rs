@@ -8,12 +8,12 @@ use crate::nodes::{Node};
 pub struct NodeId(pub usize);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Port(pub u16);
+pub struct PortId(pub u16);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Edge {
-    pub from: (NodeId, Port),
-    pub to: (NodeId, Port),
+    pub from: (NodeId, PortId),
+    pub to: (NodeId, PortId),
 }
 
 pub struct AudioGraph {
@@ -53,7 +53,7 @@ impl AudioGraph {
         }
 
         for node_idx in top_sorted.iter().cloned() {
-            let mut sources: Vec<(Port, &[f32])> = Vec::new();
+            let mut sources: Vec<(PortId, &[f32])> = Vec::new();
             for edge in self.incoming_edges[node_idx].iter().cloned() {
                 let source_idx = edge.from.0;
                 let source_port = edge.from.1;

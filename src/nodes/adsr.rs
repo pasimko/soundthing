@@ -36,7 +36,7 @@ impl AdsrNode {
 }
 
 impl Node for AdsrNode {
-    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { if let Message::On(val) = msg { self.params.on = val } };
         if self.params.on {

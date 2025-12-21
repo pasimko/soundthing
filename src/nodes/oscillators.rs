@@ -56,7 +56,7 @@ impl SineOsc {
 }
 
 impl Node for SineOsc {
-    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
         if let Ok(msg) = self.msg_receiver.try_recv() {
             self.params.handle_message(msg);
         };
@@ -100,7 +100,7 @@ impl SawtoothOsc {
 }
 
 impl Node for SawtoothOsc {
-    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
         if let Ok(msg) = self.msg_receiver.try_recv() {
             self.params.handle_message(msg);
         };
@@ -140,7 +140,7 @@ impl SquareOsc {
 }
 
 impl Node for SquareOsc {
-    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
         if let Ok(msg) = self.msg_receiver.try_recv() {
             self.params.handle_message(msg);
         };

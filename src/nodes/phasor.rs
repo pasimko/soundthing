@@ -44,7 +44,7 @@ impl Phasor {
 }
 
 impl Node for Phasor {
-    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { match msg {
             Message::Frequency(val) => self.freq = val,
@@ -102,7 +102,7 @@ impl PhaselessSineOsc {
 }
 
 impl Node for PhaselessSineOsc {
-    fn process(&mut self, inputs: &[(graph::Port, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
         if let Ok(msg) = msg { if let Message::Volume(val) = msg {
             self.vol_tick = 0;
