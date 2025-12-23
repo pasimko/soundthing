@@ -9,6 +9,7 @@ use crate::nodes::{
 
 pub mod oscillators;
 pub mod adsr;
+pub mod metronome;
 // pub mod timer;
 pub mod output;
 pub mod phasor;
@@ -31,7 +32,6 @@ pub trait Node {
 pub enum NodeParameter {
     Osc(OscParameters),
     Phasor(PhasorParameters),
-    PhaselessOsc(PhaselessOscParameters),
     Adsr(AdsrParameters),
     Output(OutputParameters),
     Math(MathParameters),
@@ -46,13 +46,30 @@ pub enum Message {
     Phase(f32),
     On(bool),
     Volume(u8),
-    Center((f32, f32)),
     Waveform(oscillators::Waveform),
     SetA(f32),
     SetB(f32),
     Operation(math::Operation),
+    Bpm(f32),
 }
 
+pub trait NodeUi {
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses;
+}
+
+pub struct PortResponses {
+    pub inputs: Vec<egui::Response>,
+    pub outputs: Vec<egui::Response>,
+}
+
+impl PortResponses {
+    pub fn new() -> Self {
+        Self {
+            inputs: vec!(),
+            outputs: vec!(),
+        }
+    }
+}
 
 pub fn vol_smooth(target: f32, start: f32, n: i32) -> f32 {
 // TODO check if needs to be f64

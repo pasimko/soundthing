@@ -1,9 +1,9 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::vol_smooth;
 use crate::nodes::graph;
+use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses, math};
 
-use super::{Node, SAMPLERATE, Message};
-use std::f32::consts::PI;
+use egui::Id;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
@@ -30,6 +30,61 @@ impl MathParameters {
             Message::SetB(val) => self.b = val,
             _ => (),
         }
+    }
+}
+
+impl NodeUi for MathParameters {
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses {
+        let mut port_responses = PortResponses::new();
+        egui::Window::new("Math").id(Id::new(idx)).show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                // port buttons
+                ui.vertical(|ui| {
+                    let a_button_response = ui.add(egui::Button::new("a"));
+                    port_responses.inputs.push(a_button_response);
+
+                    let b_button_response = ui.add(egui::Button::new("b"));
+                    port_responses.inputs.push(b_button_response);
+                });
+
+                let op = match self.operation {
+                    math::Operation::Add => "+",
+                    math::Operation::Mul => "*",
+                    math::Operation::Exp => "^",
+                };
+                ui.vertical(|ui| {
+                    let a_res = ui.add_enabled(true, egui::DragValue::new(&mut self.a));
+                    ui.menu_button(op, |ui| {
+                        ui.set_width(100.0); // To make sure we wrap long text
+                        if ui.button("+").clicked() {
+                            self.operation = math::Operation::Add;
+                            let _ = self.sender.send(Message::Operation(math::Operation::Add));
+                        }
+                        if ui.button("*").clicked() {
+                            self.operation = math::Operation::Mul;
+                            let _ = self.sender.send(Message::Operation(math::Operation::Mul));
+                        }
+                        if ui.button("^").clicked() {
+                            self.operation = math::Operation::Exp;
+                            let _ = self.sender.send(Message::Operation(math::Operation::Exp));
+                        }
+                    });
+                    let b_res = ui.add_enabled(true, egui::DragValue::new(&mut self.b));
+                    if a_res.changed() {
+                        let _ = self.sender.send(Message::SetA(self.a));
+                    }
+                    if b_res.changed() {
+                        let _ = self.sender.send(Message::SetB(self.b));
+                    }
+                });
+                // output ports
+                ui.vertical(|ui| {
+                    let out_button_response = ui.add(egui::Button::new("out"));
+                    port_responses.outputs.push(out_button_response);
+                });
+            });
+        });
+        port_responses
     }
 }
 
@@ -65,9 +120,6 @@ impl Node for MathNode {
         let mut b_buf = None;
         for (port, buffer) in inputs {
             // FRAGILE: These have to match the order the ports are declared in the UI
-            // A possible future solution will have something like PortType rather than
-            // portId, but I am concerned that I might want to have one node with duplicate
-            // inputs in the future, so I'm not doing that yet
             match port.0 {
                 0 => a_buf = Some(buffer),
                 1 => b_buf = Some(buffer),

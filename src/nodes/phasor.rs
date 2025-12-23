@@ -1,9 +1,26 @@
 use std::sync::mpsc::Sender;
-use super::graph;
+use crate::nodes::graph::PortId;
 
-use super::{Node, SAMPLERATE, Message};
+use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
+
+use egui::Id;
+
+#[derive(Debug, Clone)]
+pub enum Waveform {
+    Sine,
+    Square,
+    Tri,
+    Saw,
+}
+use super::graph;
+
+use egui::{
+    Color32, Pos2, Rect, Sense, Shape, Stroke,
+    emath,
+    pos2,
+};
 
 #[derive(Debug, Clone)]
 pub struct PhasorParameters {
@@ -13,7 +30,81 @@ pub struct PhasorParameters {
     pub name: String,
 }
 
-pub struct Phasor {
+impl PhasorParameters {
+    fn handle_message(&mut self, msg: Message) {
+        match msg {
+            Message::SetA(val) => self.point.0 = val,
+            Message::SetB(val) => self.point.1 = val,
+            Message::Frequency(val) => self.freq = val,
+            _ => (),
+        }
+    }
+}
+
+impl NodeUi for PhasorParameters {
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses {
+        let mut port_responses = PortResponses::new();
+        egui::Window::new("Phase Bender").id(Id::new(idx)).show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                // input ports
+                ui.vertical(|ui| {
+                    let x_button_response = ui.add(egui::Button::new("x"));
+                    port_responses.inputs.push(x_button_response);
+                    let y_button_response = ui.add(egui::Button::new("y"));
+                    port_responses.inputs.push(y_button_response);
+                    let freq_button_response = ui.add(egui::Button::new("freq"));
+                    port_responses.inputs.push(freq_button_response);
+                });
+                // sliders, other non-port UI stuff
+                ui.vertical(|ui| {
+                    ui.set_max_width(200.0);
+                    ui.set_max_height(200.0);
+                    let (mut response, painter) =
+                        ui.allocate_painter(ui.available_size_before_wrap(), Sense::drag());
+
+                    let to_screen = emath::RectTransform::from_to(
+                        Rect::from_min_size(Pos2::ZERO, response.rect.square_proportions()),
+                        response.rect,
+                    );
+                    let from_screen = to_screen.inverse();
+
+                    if let Some(pointer_pos) = response.interact_pointer_pos() {
+                        let canvas_pos = from_screen * pointer_pos;
+                        self.point.0 = canvas_pos[0];
+                        self.point.1 = canvas_pos[1];
+                        self.sender.send(Message::SetA(self.point.0)).unwrap();
+                        self.sender.send(Message::SetB(self.point.1)).unwrap();
+                        response.mark_changed();
+                    }
+
+                    // Draw phase bender graph
+                    let lines = [vec![pos2(0., 1.), pos2(self.point.0, self.point.1), pos2(1., 0.)]];
+                    let shapes = lines
+                        .iter()
+                        .filter(|line| line.len() >= 2)
+                        .map(|line| {
+                            let points: Vec<Pos2> = line.iter().map(|p| to_screen * *p).collect();
+                            egui::Shape::line(points, Stroke::new(2.0, Color32::BLACK))
+                        });
+                    painter.extend(shapes);
+                    let freq_res = ui.add(egui::Slider::new(&mut self.freq, 20.0..=2000.0).text("frequency").logarithmic(true));
+                    if freq_res.changed() {
+                        self.sender.send(Message::Frequency(self.freq)).unwrap();
+                    }
+                });
+
+                // output ports
+                ui.vertical(|ui| {
+                    let out_button_response = ui.add(egui::Button::new("out"));
+                    port_responses.outputs.push(out_button_response);
+                });
+            });
+        });
+        port_responses
+    }
+}
+
+pub struct PhaseBender {
     params: PhasorParameters,
     phase: f32,
     freq: f32,
@@ -21,7 +112,7 @@ pub struct Phasor {
     pub point: (f32, f32),
 }
 
-impl Phasor {
+impl PhaseBender {
     pub fn new() -> (Self, PhasorParameters) {
         let (msg_sender, msg_receiver) = channel();
         let point = (0.5, 0.5);
@@ -43,73 +134,43 @@ impl Phasor {
     }
 }
 
-impl Node for Phasor {
+impl Node for PhaseBender {
     fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
-        let msg = self.msg_receiver.try_recv();
-        if let Ok(msg) = msg { match msg {
-            Message::Frequency(val) => self.freq = val,
-            Message::Center((x, y)) => self.point = (x, 1.-y),
-            _ => (),
-        } };
-        for sample in output {
-            let frequency = self.freq;
-            *sample = self.phase;
-            if self.phase < self.point.0 {
-                self.phase += self.point.1 / self.point.0 / (SAMPLERATE as f32 / frequency);
+        if let Ok(msg) = self.msg_receiver.try_recv() {
+            self.params.handle_message(msg);
+        };
+        // If we have inputs, use these buffers
+        let mut x_buf = None;
+        let mut y_buf = None;
+        let mut freq_buf = None;
+        for (port, buffer) in inputs {
+            // FRAGILE: These have to match the order the ports are declared in the UI
+            match port.0 {
+                0 => x_buf = Some(buffer),
+                1 => y_buf = Some(buffer),
+                2 => freq_buf = Some(buffer),
+                _ => {}
+            }
+        }
+        for i in 0..output.len() {
+            let x = x_buf
+                .map(|b| b[i])
+                .unwrap_or(self.params.point.0);
+            let y = y_buf
+                .map(|b| b[i])
+                .unwrap_or(self.params.point.1 as f32);
+            let freq = freq_buf
+                .map(|b| b[i])
+                .unwrap_or(self.params.freq);
+
+            if self.phase < x {
+                self.phase += y / x / (SAMPLERATE as f32 / freq);
             }
             else {
-                self.phase += (1.-self.point.0) / (1.-self.point.0) / (SAMPLERATE as f32 / frequency);
+                self.phase += (1. - y) / (1. - x) / (SAMPLERATE as f32 / freq);
             }
             self.phase = self.phase.rem_euclid(1.);
+            output[i] = self.phase;
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct PhaselessOscParameters {
-    pub target_vol: u8,
-    pub last_vol: f32,
-    pub sender: Sender<Message>,
-    pub name: String,
-}
-
-// TODO why did I choose to make Parameters its own
-// thing? OR why did I choose to have phase/vol_tick on their own??
-pub struct PhaselessSineOsc {
-    params: PhaselessOscParameters,
-    vol_tick: u32,
-    msg_receiver: Receiver<Message>,
-    phase: f32,
-}
-
-impl PhaselessSineOsc {
-    pub fn new() -> (Self, PhaselessOscParameters) {
-        let (msg_sender, msg_receiver) = channel();
-        let params = PhaselessOscParameters {
-            target_vol: 100,
-            last_vol: 32. / 100.,
-            sender: msg_sender,
-            name: "Phaseless Sine Oscillator".to_string(),
-        };
-        let handler = params.clone();
-        (Self {
-            params,
-            vol_tick: 0,
-            msg_receiver,
-            phase: 0.,
-        }, handler)
-    }
-}
-
-impl Node for PhaselessSineOsc {
-    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
-        let msg = self.msg_receiver.try_recv();
-        if let Ok(msg) = msg { if let Message::Volume(val) = msg {
-            self.vol_tick = 0;
-            self.params.last_vol = self.params.target_vol as f32 / 100.;
-            self.params.target_vol = val;
-        } };
-        // let volume = vol_smooth(self.params.target_vol as f32, self.params.last_vol, self.vol_tick as i32);
-        output.iter_mut().zip(inputs[0].1.iter()).for_each(|(o, &i)| *o = (6.28*i).sin()); // * (self.target_vol as f32 / 100.));
     }
 }

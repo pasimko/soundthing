@@ -8,7 +8,7 @@ use crate::nodes::{Node};
 pub struct NodeId(pub usize);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct PortId(pub u16);
+pub struct PortId(pub usize);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Edge {

@@ -3,8 +3,15 @@
 //
 
 use std::iter::zip;
-use super::Node;
 use crate::graph;
+use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
+use std::sync::mpsc::Sender;
+use crate::nodes::graph::PortId;
+
+use std::sync::mpsc::channel;
+use std::sync::mpsc::Receiver;
+
+use egui::Id;
 
 
 #[allow(dead_code)]
@@ -16,6 +23,19 @@ pub struct OutputNode {
 #[derive(Debug, Clone)]
 pub struct OutputParameters {
     pub name: String,
+}
+
+impl NodeUi for OutputParameters {
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses {
+        let mut port_responses = PortResponses::new();
+        egui::Window::new(self.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
+            ui.vertical(|ui| {
+                let in_button_response = ui.add(egui::Button::new("in"));
+                port_responses.inputs.push(in_button_response);
+            });
+        });
+        port_responses
+    }
 }
 
 #[allow(dead_code)]

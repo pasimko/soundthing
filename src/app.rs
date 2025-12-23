@@ -11,27 +11,13 @@ use wasm_bindgen::JsValue;
 use web_sys::console;
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
-math::MathNode,
-phasor::Phasor, phasor::PhaselessSineOsc};
+math::MathNode, PortResponses,
+phasor::PhaseBender};
 
 enum Mode {
     Normal,
     SelectSink(graph::NodeId, graph::PortId),
     SelectSource(graph::NodeId, graph::PortId),
-}
-
-struct PortResponses {
-    inputs: Vec<egui::Response>,
-    outputs: Vec<egui::Response>,
-}
-
-impl PortResponses {
-    fn new() -> Self {
-        Self {
-            inputs: vec!(),
-            outputs: vec!(),
-        }
-    }
 }
 
 pub struct Canvas {
@@ -57,156 +43,10 @@ impl Canvas {
     pub fn render_nodes(&mut self, ctx: &egui::Context) {
         let mut responses: Vec<PortResponses> = vec!();
         for (idx, p) in self.node_parameters.iter_mut().enumerate() {
-            let mut port_responses = PortResponses::new();
             match p {
-                NodeParameter::Osc(p) => {
-                    let label = match p.waveform {
-                        Waveform::Saw => "Sawtooth Oscillator",
-                        Waveform::Sine => "Sine Oscillator",
-                        Waveform::Square => "Square Oscillator",
-                        Waveform::Tri => "Triangle Oscillator",
-                    };
-                    egui::Window::new(label).id(Id::new(idx)).show(ctx, |ui| {
-                        ui.horizontal(|ui| {
-                            // input ports
-                            ui.vertical(|ui| {
-                                let frequency_button_response = ui.add(egui::Button::new("frequency"));
-                                if frequency_button_response.clicked() {
-                                    match self.current_mode {
-                                        // Finish creating new edge
-                                        Mode::SelectSink(node_id, port) => {
-                                            let new_edge = graph::Edge { 
-                                                from: (node_id, port), 
-                                                to: (graph::NodeId(idx), graph::PortId(0)),
-                                            };
-                                            self.incoming_edges.push(new_edge.clone());
-                                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
-                                            self.current_mode = Mode::Normal;
-                                        },
-                                        // Start creating new edge
-                                        Mode::Normal => {
-                                            self.current_mode = Mode::SelectSource(graph::NodeId(idx), graph::PortId(0));
-                                        },
-                                        _ => {}
-                                    }
-                                }
-                                port_responses.inputs.push(frequency_button_response);
-
-                                let volume_button_response = ui.add(egui::Button::new("volume"));
-                                if volume_button_response.clicked() {
-                                    match self.current_mode {
-                                        // Finish creating new edge
-                                        Mode::SelectSink(node_id, port) => {
-                                            let new_edge = graph::Edge { 
-                                                from: (node_id, port), 
-                                                to: (graph::NodeId(idx), graph::PortId(1)),
-                                            };
-                                            self.incoming_edges.push(new_edge.clone());
-                                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
-                                            self.current_mode = Mode::Normal;
-                                        },
-                                        // Start creating new edge
-                                        Mode::Normal => {
-                                            self.current_mode = Mode::SelectSource(graph::NodeId(idx), graph::PortId(0));
-                                        },
-                                        _ => {}
-                                    }
-                                }
-                                port_responses.inputs.push(volume_button_response);
-                                if ui.add(egui::Button::new("phase")).clicked() {
-                                    // connection mode
-                                }
-                            });
-                            // sliders, other non-port UI stuff
-                            ui.vertical(|ui| {
-                                let freq_res = ui.add_enabled(true,
-                                    egui::Slider::new(&mut p.freq, 0.0..=2000.0)
-                                        .text("frequency")
-                                        .logarithmic(true));
-                                let vol_res = ui.add_enabled(true,
-                                    egui::Slider::new(&mut p.target_vol, 0..=100)
-                                        .text("volume"));
-                                if freq_res.changed() {
-                                    let _ = p.sender.send(Message::Frequency(p.freq));
-                                }
-                                if vol_res.changed() {
-                                    let _ = p.sender.send(Message::Volume(p.target_vol));
-                                }
-                                ui.menu_button("waveform", |ui| {
-                                    ui.set_width(100.0); // To make sure we wrap long text
-                                    if ui.button("Sine").clicked() {
-                                        p.waveform = Waveform::Sine;
-                                        let _ = p.sender.send(Message::Waveform(oscillators::Waveform::Sine));
-                                    }
-                                    if ui.button("Square").clicked() {
-                                        p.waveform = Waveform::Square;
-                                        let _ = p.sender.send(Message::Waveform(oscillators::Waveform::Square));
-                                    }
-                                    if ui.button("Saw").clicked() {
-                                        p.waveform = Waveform::Saw;
-                                        let _ = p.sender.send(Message::Waveform(oscillators::Waveform::Saw));
-                                    }
-                                });
-                            });
-                            // output ports
-                            ui.vertical(|ui| {
-                                let out_button_response = ui.add(egui::Button::new("out"));
-                                if out_button_response.clicked() {
-                                    self.current_mode = Mode::SelectSink(graph::NodeId(idx), graph::PortId(0));
-                                }
-                                port_responses.outputs.push(out_button_response);
-                            });
-                        });
-                    });
-                    responses.push(port_responses);
-                }
-                NodeParameter::PhaselessOsc(p) => {
-                    egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
-                        let vol_res = ui.add(egui::Slider::new(&mut p.target_vol, 0..=100).text("volume"));
-                        if vol_res.changed() {
-                            p.sender.send(Message::Volume(p.target_vol)).unwrap();
-                        }
-                    });
-                }
-                NodeParameter::Phasor(p) => {
-                    egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
-                        ui.set_max_width(200.0);
-                        ui.set_max_height(300.0);
-                        let (mut response, painter) =
-                            ui.allocate_painter(ui.available_size_before_wrap(), Sense::drag());
-
-                        let to_screen = emath::RectTransform::from_to(
-                            Rect::from_min_size(Pos2::ZERO, response.rect.square_proportions()),
-                            response.rect,
-                        );
-                        let from_screen = to_screen.inverse();
-
-                        if let Some(pointer_pos) = response.interact_pointer_pos() {
-                            let canvas_pos = from_screen * pointer_pos;
-                            p.point.0 = canvas_pos[0];
-                            p.point.1 = canvas_pos[1];
-                            p.sender.send(Message::Center(p.point)).unwrap();
-                            response.mark_changed();
-                        }
-
-                        // Draw phase bender graph
-                        let lines = [vec![pos2(0., 1.), pos2(p.point.0, p.point.1), pos2(1., 0.)]];
-                        let shapes = lines
-                            .iter()
-                            .filter(|line| line.len() >= 2)
-                            .map(|line| {
-                                let points: Vec<Pos2> = line.iter().map(|p| to_screen * *p).collect();
-                                egui::Shape::line(points, Stroke::new(2.0, Color32::BLACK))
-                            });
-                        painter.extend(shapes);
-                        let freq_res = ui.add(egui::Slider::new(&mut p.freq, 20.0..=2000.0).text("frequency").logarithmic(true));
-                        if freq_res.changed() {
-                            p.sender.send(Message::Frequency(p.freq)).unwrap();
-                        }
-                    });
-
-                    // results.push(result);
-                }
+                NodeParameter::Osc(p) => responses.push(p.draw(ctx, idx)),
+                NodeParameter::Phasor(p) => responses.push(p.draw(ctx, idx)),
+                // TODO update with new edge handling
                 NodeParameter::Adsr(p) => {
                     egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
                         let on = ui.add(egui::Button::new("on"));
@@ -216,127 +56,62 @@ impl Canvas {
                     });
                     // results.push(result);
                 }
-                NodeParameter::Math(p) => {
-                    egui::Window::new("Math").id(Id::new(idx)).show(ctx, |ui| {
-                        ui.horizontal(|ui| {
-                            // port buttons
-                            ui.vertical(|ui| {
-                                let a_button_response = ui.add(egui::Button::new("a"));
-                                if a_button_response.clicked() {
-                                    match self.current_mode {
-                                        Mode::SelectSink(node_id, port) => {
-                                            let new_edge = graph::Edge { 
-                                                from: (node_id, port), 
-                                                to: (graph::NodeId(idx), graph::PortId(0)),
-                                            };
-
-                                            self.incoming_edges.push(new_edge.clone());
-                                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
-                                            self.current_mode = Mode::Normal;
-                                        },
-                                        Mode::Normal => { 
-                                            self.current_mode = Mode::SelectSource(graph::NodeId(idx), graph::PortId(0));
-                                        },
-                                        _ => {}
-                                    }
-                                }
-                                port_responses.inputs.push(a_button_response);
-
-                                let b_button_response = ui.add(egui::Button::new("b"));
-                                if b_button_response.clicked() {
-                                    match self.current_mode {
-                                        Mode::SelectSink(node_id, port) => {
-                                            let new_edge = graph::Edge { 
-                                                from: (node_id, port), 
-                                                to: (graph::NodeId(idx), graph::PortId(1)),
-                                            };
-                                            self.incoming_edges.push(new_edge.clone());
-                                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
-                                            self.current_mode = Mode::Normal;
-                                        },
-                                        Mode::Normal => { 
-                                            self.current_mode = Mode::SelectSource(graph::NodeId(idx), graph::PortId(1));
-                                        },
-                                        _ => {}
-                                    }
-                                }
-                                port_responses.inputs.push(b_button_response);
-                            });
-
-                            let op = match p.operation {
-                                math::Operation::Add => "+",
-                                math::Operation::Mul => "*",
-                                math::Operation::Exp => "^",
+                NodeParameter::Math(p) => responses.push(p.draw(ctx, idx)),
+                NodeParameter::Output(p) => responses.push(p.draw(ctx, idx)),
+            }
+        }
+        // Handle drawing all the edges
+        for (idx, node) in responses.iter().enumerate() {
+            for (jdx, port) in node.inputs.iter().enumerate() {
+                if port.clicked() {
+                    let current_node = (graph::NodeId(idx), graph::PortId(jdx));
+                    match self.current_mode {
+                        // Finish creating new edge
+                        Mode::SelectSink(node_id, port) => {
+                            let new_edge = graph::Edge { 
+                                from: (node_id, port), 
+                                to: current_node,
                             };
-                            ui.vertical(|ui| {
-                                let a_res = ui.add_enabled(true, egui::DragValue::new(&mut p.a));
-                                ui.menu_button(op, |ui| {
-                                    ui.set_width(100.0); // To make sure we wrap long text
-                                    if ui.button("+").clicked() {
-                                        p.operation = math::Operation::Add;
-                                        let _ = p.sender.send(Message::Operation(math::Operation::Add));
-                                    }
-                                    if ui.button("*").clicked() {
-                                        p.operation = math::Operation::Mul;
-                                        let _ = p.sender.send(Message::Operation(math::Operation::Mul));
-                                    }
-                                    if ui.button("^").clicked() {
-                                        p.operation = math::Operation::Exp;
-                                        let _ = p.sender.send(Message::Operation(math::Operation::Exp));
-                                    }
-                                });
-                                let b_res = ui.add_enabled(true, egui::DragValue::new(&mut p.b));
-                                if a_res.changed() {
-                                    let _ = p.sender.send(Message::SetA(p.a));
-                                }
-                                if b_res.changed() {
-                                    let _ = p.sender.send(Message::SetB(p.b));
-                                }
-                            });
-                            // output ports
-                            ui.vertical(|ui| {
-                                let out_button_response = ui.add(egui::Button::new("out"));
-                                if out_button_response.clicked() {
-                                    self.current_mode = Mode::SelectSink(graph::NodeId(idx), graph::PortId(0));
-                                }
-                                port_responses.outputs.push(out_button_response);
-                            });
-                        });
-                    });
-                    responses.push(port_responses);
+                            self.incoming_edges.push(new_edge.clone());
+                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
+                            self.current_mode = Mode::Normal;
+                        },
+                        // Start creating new edge
+                        Mode::Normal => {
+                            self.current_mode = Mode::SelectSource(current_node.0, current_node.1);
+                        },
+                        _ => {}
+                    }
                 }
-                NodeParameter::Output(p) => {
-                    egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
-                        ui.vertical(|ui| {
-                            let in_button_response = ui.add(egui::Button::new("in"));
-                            if in_button_response.clicked() {
-                                match self.current_mode {
-                                    Mode::SelectSink(node_id, port) => {
-                                        let new_edge = graph::Edge { 
-                                            from: (node_id, port), 
-                                            to: (graph::NodeId(idx), graph::PortId(0)),
-                                        };
-
-                                        self.incoming_edges.push(new_edge.clone());
-                                        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
-                                        self.current_mode = Mode::Normal;
-                                    },
-                                    Mode::Normal => {
-                                        self.current_mode = Mode::SelectSource(graph::NodeId(idx), graph::PortId(0));
-                                    },
-                                    _ => {}
-                                }
-                            }
-                            port_responses.inputs.push(in_button_response);
-                        });
-                    });
-                    responses.push(port_responses);
+            }
+            for (jdx, port) in node.outputs.iter().enumerate() {
+                if port.clicked() {
+                    let current_node = (graph::NodeId(idx), graph::PortId(jdx));
+                    match self.current_mode {
+                        // Finish creating new edge
+                        Mode::SelectSource(node_id, port) => {
+                            let new_edge = graph::Edge { 
+                                from: current_node,
+                                to: (node_id, port), 
+                            };
+                            self.incoming_edges.push(new_edge.clone());
+                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
+                            self.current_mode = Mode::Normal;
+                        },
+                        // Start creating new edge
+                        Mode::Normal => {
+                            self.current_mode = Mode::SelectSink(current_node.0, current_node.1);
+                        },
+                        _ => {}
+                    }
                 }
             }
         }
-        let painter = ctx.layer_painter(egui::LayerId::background());
+
         // Draw all the edges
         // TODO this breaks if a widget isn't drawn -- collapsed window, maybe other cases
+        // Switching to an ID system would help, probably
+        let painter = ctx.layer_painter(egui::LayerId::background());
         for edge in self.incoming_edges.iter() {
             let source_idx = edge.from.0.0;
             let sink_idx = edge.to.0.0;
@@ -354,6 +129,7 @@ impl Canvas {
             let line = Shape::line(vec![parent_point, child_point], Stroke::new(2.0, Color32::GRAY));
             painter.add(line);
         }
+        // Draw the edge currently being created
         let painter = ctx.layer_painter(egui::LayerId::new(egui::layers::Order::Foreground, Id::new("ephemeral interaction")));
         match self.current_mode {
             Mode::SelectSource(node_id, port) => {
@@ -426,17 +202,11 @@ impl eframe::App for Canvas {
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_node)));
                         ui.close();
                     }
-                    if ui.button("ADSR").clicked() {
-                        let (new_osc, new_phasor_handler) = AdsrNode::new();
-                        self.node_parameters.push(NodeParameter::Adsr(new_phasor_handler));
-                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
-                        ui.close();
-                    }
                 });
                 ui.menu_button("Add controller", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
                     if ui.button("Phasor").clicked() {
-                        let (new_osc, new_phasor_handler) = Phasor::new();
+                        let (new_osc, new_phasor_handler) = PhaseBender::new();
                         self.node_parameters.push(NodeParameter::Phasor(new_phasor_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
@@ -467,7 +237,3 @@ impl eframe::App for Canvas {
         }
     }
 }
-
-
-// TODO TESTS
-// 1. Make sure removing node removes all the edges
