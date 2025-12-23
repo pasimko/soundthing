@@ -1,9 +1,7 @@
 use std::sync::mpsc::Sender;
-use crate::nodes::vol_smooth;
 use crate::nodes::graph;
 
 use super::{Node, SAMPLERATE, Message};
-use std::f32::consts::PI;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
@@ -22,10 +20,7 @@ pub struct MetronomeParameters {
 
 impl MetronomeParameters {
     fn handle_message(&mut self, msg: Message) {
-        match msg {
-            Message::Bpm(val) => self.bpm = val,
-            _ => (),
-        }
+        if let Message::Bpm(val) = msg { self.bpm = val }
     }
 }
 
@@ -60,10 +55,7 @@ impl Node for MetronomeNode {
         let mut bpm_buf = None;
         for (port, buffer) in inputs {
             // FRAGILE: These have to match the order the ports are declared in the UI
-            match port.0 {
-                0 => bpm_buf = Some(buffer),
-                _ => {}
-            }
+            if port.0 == 0 { bpm_buf = Some(buffer) }
         }
         for i in 0..output.len() {
             let bpm = bpm_buf

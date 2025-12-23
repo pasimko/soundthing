@@ -1,7 +1,6 @@
 use std::sync::mpsc::Sender;
-use crate::nodes::vol_smooth;
 use crate::nodes::graph;
-use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses, math};
+use super::{Node, Message, NodeUi, PortResponses, math};
 
 use egui::Id;
 use std::sync::mpsc::channel;
@@ -133,7 +132,7 @@ impl Node for MathNode {
 
             let b = b_buf
                 .map(|b| b[i])
-                .unwrap_or(self.params.b as f32);
+                .unwrap_or(self.params.b);
 
             match self.params.operation {
                 Operation::Add => {

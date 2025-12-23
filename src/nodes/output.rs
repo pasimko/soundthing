@@ -4,12 +4,8 @@
 
 use std::iter::zip;
 use crate::graph;
-use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
-use std::sync::mpsc::Sender;
-use crate::nodes::graph::PortId;
+use super::{Node, NodeUi, PortResponses};
 
-use std::sync::mpsc::channel;
-use std::sync::mpsc::Receiver;
 
 use egui::Id;
 

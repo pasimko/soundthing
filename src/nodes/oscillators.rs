@@ -1,9 +1,7 @@
 use std::sync::mpsc::Sender;
-use crate::nodes::vol_smooth;
 use crate::nodes::graph::PortId;
 
 use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
-use std::f32::consts::PI;
 use std::f32::consts::TAU;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -60,7 +58,7 @@ impl NodeUi for OscParameters {
                 // sliders, other non-port UI stuff
                 ui.vertical(|ui| {
                     let freq_res = ui.add_enabled(true,
-                        egui::Slider::new(&mut self.freq, 0.0..=2000.0)
+                        egui::Slider::new(&mut self.freq, 0.001..=2000.0)
                         .text("frequency")
                         .logarithmic(true));
                     let vol_res = ui.add_enabled(true,
@@ -162,8 +160,8 @@ impl Node for OscNode {
 
             match self.params.waveform {
                 Waveform::Sine => output[i] = (phase * TAU).sin() * (vol / 100.0),
-                Waveform::Saw => output[i] = (self.phase - 1.) * (vol as f32 / 100.),
-                Waveform::Square => output[i] = self.phase.round() * (vol as f32 / 100.),
+                Waveform::Saw => output[i] = (self.phase - 1.) * (vol / 100.),
+                Waveform::Square => output[i] = self.phase.round() * (vol / 100.),
                 Waveform::Tri => {}
             }
             self.phase = phase.rem_euclid(1.);

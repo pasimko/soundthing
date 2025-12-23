@@ -1,5 +1,4 @@
 use std::sync::mpsc::Sender;
-use crate::nodes::graph::PortId;
 
 use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
 use std::sync::mpsc::channel;
@@ -17,7 +16,7 @@ pub enum Waveform {
 use super::graph;
 
 use egui::{
-    Color32, Pos2, Rect, Sense, Shape, Stroke,
+    Color32, Pos2, Rect, Sense, Stroke,
     emath,
     pos2,
 };
@@ -87,7 +86,7 @@ impl NodeUi for PhasorParameters {
                             egui::Shape::line(points, Stroke::new(2.0, Color32::BLACK))
                         });
                     painter.extend(shapes);
-                    let freq_res = ui.add(egui::Slider::new(&mut self.freq, 20.0..=2000.0).text("frequency").logarithmic(true));
+                    let freq_res = ui.add(egui::Slider::new(&mut self.freq, 0.001..=2000.0).text("frequency").logarithmic(true));
                     if freq_res.changed() {
                         self.sender.send(Message::Frequency(self.freq)).unwrap();
                     }
@@ -158,7 +157,7 @@ impl Node for PhaseBender {
                 .unwrap_or(self.params.point.0);
             let y = y_buf
                 .map(|b| b[i])
-                .unwrap_or(self.params.point.1 as f32);
+                .unwrap_or(self.params.point.1);
             let freq = freq_buf
                 .map(|b| b[i])
                 .unwrap_or(self.params.freq);

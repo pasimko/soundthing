@@ -2,13 +2,9 @@ use std::sync::mpsc::Sender;
 use super::graph;
 use egui::Id;
 use egui::{
-    Color32, Pos2, Rect, Sense, Shape, Stroke,
-    emath,
-    pos2,
+    Color32, Pos2, Shape, Stroke,
 };
 
-use wasm_bindgen::JsValue;
-use web_sys::console;
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
 math::MathNode, PortResponses,
@@ -72,7 +68,7 @@ impl Canvas {
                                 from: (node_id, port), 
                                 to: current_node,
                             };
-                            self.incoming_edges.push(new_edge.clone());
+                            self.incoming_edges.push(new_edge);
                             let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
                             self.current_mode = Mode::Normal;
                         },
@@ -94,7 +90,7 @@ impl Canvas {
                                 from: current_node,
                                 to: (node_id, port), 
                             };
-                            self.incoming_edges.push(new_edge.clone());
+                            self.incoming_edges.push(new_edge);
                             let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
                             self.current_mode = Mode::Normal;
                         },
@@ -115,8 +111,8 @@ impl Canvas {
         for edge in self.incoming_edges.iter() {
             let source_idx = edge.from.0.0;
             let sink_idx = edge.to.0.0;
-            let source_port_response = &responses[source_idx].outputs[edge.from.1.0 as usize];
-            let sink_port_response = &responses[sink_idx].inputs[edge.to.1.0 as usize];
+            let source_port_response = &responses[source_idx].outputs[edge.from.1.0];
+            let sink_port_response = &responses[sink_idx].inputs[edge.to.1.0];
 
             // source port coords
             let (top_left, bot_right) = (source_port_response.rect.min, source_port_response.rect.max);
@@ -133,7 +129,7 @@ impl Canvas {
         let painter = ctx.layer_painter(egui::LayerId::new(egui::layers::Order::Foreground, Id::new("ephemeral interaction")));
         match self.current_mode {
             Mode::SelectSource(node_id, port) => {
-                let sink_port_response = &responses[node_id.0].inputs[port.0 as usize];
+                let sink_port_response = &responses[node_id.0].inputs[port.0];
 
                 // source port coords
                 let (top_left, bot_right) = (sink_port_response.rect.min, sink_port_response.rect.max);
@@ -145,7 +141,7 @@ impl Canvas {
             }
             Mode::SelectSink(node_id, port) => {
                 let source_port_response = &responses[node_id.0]
-                    .outputs[port.0 as usize];
+                    .outputs[port.0];
 
                 // source port coords
                 let (top_left, bot_right) = (source_port_response.rect.min, source_port_response.rect.max);
