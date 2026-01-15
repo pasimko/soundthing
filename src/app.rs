@@ -7,7 +7,7 @@ use egui::{
 
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
-math::MathNode, PortResponses,
+math::MathNode, PortResponses, metronome::MetronomeNode, sequencer::SequencerNode,
 phasor::PhaseBender};
 
 enum Mode {
@@ -54,6 +54,8 @@ impl Canvas {
                 }
                 NodeParameter::Math(p) => responses.push(p.draw(ctx, idx)),
                 NodeParameter::Output(p) => responses.push(p.draw(ctx, idx)),
+                NodeParameter::Metronome(p) => responses.push(p.draw(ctx, idx)),
+                NodeParameter::Sequencer(p) => responses.push(p.draw(ctx, idx)),
             }
         }
         // Handle drawing all the edges
@@ -207,9 +209,21 @@ impl eframe::App for Canvas {
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }
+                    if ui.button("Metronome").clicked() {
+                        let (new_osc, new_metronome_handler) = MetronomeNode::new();
+                        self.node_parameters.push(NodeParameter::Metronome(new_metronome_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        ui.close();
+                    }
                     if ui.button("ADSR").clicked() {
                         let (new_osc, new_phasor_handler) = AdsrNode::new();
                         self.node_parameters.push(NodeParameter::Adsr(new_phasor_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        ui.close();
+                    }
+                    if ui.button("Sequencer").clicked() {
+                        let (new_osc, new_sequencer_handler) = SequencerNode::new();
+                        self.node_parameters.push(NodeParameter::Sequencer(new_sequencer_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }

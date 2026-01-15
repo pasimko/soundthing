@@ -1,7 +1,8 @@
 use std::sync::mpsc::Sender;
-use crate::nodes::graph;
+use crate::nodes::graph::PortId;
+use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
+use egui::Id;
 
-use super::{Node, SAMPLERATE, Message};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
@@ -21,6 +22,38 @@ pub struct MetronomeParameters {
 impl MetronomeParameters {
     fn handle_message(&mut self, msg: Message) {
         if let Message::Bpm(val) = msg { self.bpm = val }
+    }
+}
+
+impl NodeUi for MetronomeParameters {
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses {
+        let mut port_responses = PortResponses::new();
+        egui::Window::new("Metronome").id(Id::new(idx)).show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                // port buttons
+                ui.vertical(|ui| {
+                    let bpm_button_response = ui.add(egui::Button::new("bpm"));
+                    port_responses.inputs.push(bpm_button_response);
+                });
+                ui.vertical(|ui| {
+                    ui.set_width(100.0); // To make sure we wrap long text
+                    let bpm_res = ui.add_enabled(true,
+                        egui::Slider::new(&mut self.bpm, 0.1..=2000.0)
+                        .text("bpm")
+                        .logarithmic(true)
+                    );
+                    if bpm_res.changed() {
+                        let _ = self.sender.send(Message::Bpm(self.bpm));
+                    }
+                });
+                // output ports
+                ui.vertical(|ui| {
+                    let out_button_response = ui.add(egui::Button::new("out"));
+                    port_responses.outputs.push(out_button_response);
+                });
+            });
+        });
+        port_responses
     }
 }
 
@@ -47,7 +80,7 @@ impl MetronomeNode {
 }
 
 impl Node for MetronomeNode {
-    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]) {
         if let Ok(msg) = self.msg_receiver.try_recv() {
             self.params.handle_message(msg);
         };

@@ -1,12 +1,12 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
+use egui::Id;
 
 use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
 use std::f32::consts::TAU;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
-use egui::Id;
 
 #[derive(Debug, Clone)]
 pub enum Waveform {

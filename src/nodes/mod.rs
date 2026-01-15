@@ -5,11 +5,14 @@ use crate::nodes::{
     phasor::*,
     graph::{PortId},
     math::*,
+    metronome::*,
+    sequencer::*,
 };
 
 pub mod oscillators;
 pub mod adsr;
 pub mod metronome;
+pub mod sequencer;
 // pub mod timer;
 pub mod output;
 pub mod phasor;
@@ -35,6 +38,8 @@ pub enum NodeParameter {
     Adsr(AdsrParameters),
     Output(OutputParameters),
     Math(MathParameters),
+    Metronome(MetronomeParameters),
+    Sequencer(SequencerParameters),
 }
 
 // I don't love this - added because TimerNode needs to be able
@@ -51,6 +56,7 @@ pub enum Message {
     SetB(f32),
     Operation(math::Operation),
     Bpm(f32),
+    Sequence(Vec<f32>),
 }
 
 pub trait NodeUi {
