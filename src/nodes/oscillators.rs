@@ -109,7 +109,7 @@ impl OscNode {
         let (msg_sender, msg_receiver) = channel();
         let params = OscParameters {
             freq: 440.,
-            target_vol: 1,
+            target_vol: 32,
             last_vol: 32. / 100.,
             sender: msg_sender,
             waveform: Waveform::Sine,
