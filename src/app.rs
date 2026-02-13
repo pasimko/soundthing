@@ -42,16 +42,7 @@ impl Canvas {
             match p {
                 NodeParameter::Osc(p) => responses.push(p.draw(ctx, idx)),
                 NodeParameter::Phasor(p) => responses.push(p.draw(ctx, idx)),
-                // TODO update with new edge handling
-                NodeParameter::Adsr(p) => {
-                    egui::Window::new(p.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
-                        let on = ui.add(egui::Button::new("on"));
-                        let on = on.hovered();
-                        p.on = on;
-                        p.sender.send(Message::On(on)).unwrap();
-                    });
-                    // results.push(result);
-                }
+                NodeParameter::Adsr(p) => responses.push(p.draw(ctx, idx)),
                 NodeParameter::Math(p) => responses.push(p.draw(ctx, idx)),
                 NodeParameter::Output(p) => responses.push(p.draw(ctx, idx)),
                 NodeParameter::Metronome(p) => responses.push(p.draw(ctx, idx)),

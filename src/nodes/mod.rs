@@ -49,7 +49,7 @@ pub enum NodeParameter {
 pub enum Message {
     Frequency(f32),
     Phase(f32),
-    On(bool),
+    Gate(bool),
     Volume(u8),
     Waveform(oscillators::Waveform),
     SetA(f32),
@@ -81,4 +81,8 @@ pub fn vol_smooth(target: f32, start: f32, n: i32) -> f32 {
 // TODO check if needs to be f64
     
     target + 0.999_f32.powi(n) * (start - target)
+}
+
+fn ratio2pole(t: f32, ratio: f32) -> f32 {
+    return ratio.powf(1./(t*SAMPLERATE as f32));
 }
