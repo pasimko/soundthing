@@ -49,7 +49,7 @@ impl Canvas {
                 NodeParameter::Sequencer(p) => responses.push(p.draw(ctx, idx)),
             }
         }
-        // Handle drawing all the edges
+        // Edge creation
         for (idx, node) in responses.iter().enumerate() {
             for (jdx, port) in node.inputs.iter().enumerate() {
                 if port.clicked() {
@@ -97,7 +97,7 @@ impl Canvas {
             }
         }
 
-        // Draw all the edges
+        // Draw edges
         // TODO this breaks if a widget isn't drawn -- collapsed window, maybe other cases
         // Switching to an ID system would help, probably
         let painter = ctx.layer_painter(egui::LayerId::background());
@@ -118,7 +118,8 @@ impl Canvas {
             let line = Shape::line(vec![parent_point, child_point], Stroke::new(2.0, Color32::GRAY));
             painter.add(line);
         }
-        // Draw the edge currently being created
+
+        // Draw the edge currently being created in a special color
         let painter = ctx.layer_painter(egui::LayerId::new(egui::layers::Order::Foreground, Id::new("ephemeral interaction")));
         match self.current_mode {
             Mode::SelectSource(node_id, port) => {
@@ -127,6 +128,8 @@ impl Canvas {
                 // source port coords
                 let (top_left, bot_right) = (sink_port_response.rect.min, sink_port_response.rect.max);
                 let parent_point = Pos2::new(top_left.x, (top_left.y+bot_right.y) / 2.);
+
+                // draw the line
                 if let Some(mouse_pos) = ctx.input(|i| i.pointer.latest_pos()) {
                     let line = Shape::line(vec![parent_point, mouse_pos], Stroke::new(2.0, Color32::PURPLE));
                     painter.add(line);
@@ -139,6 +142,8 @@ impl Canvas {
                 // source port coords
                 let (top_left, bot_right) = (source_port_response.rect.min, source_port_response.rect.max);
                 let parent_point = Pos2::new(bot_right.x, (top_left.y+bot_right.y) / 2.);
+                
+                // draw the line
                 if let Some(mouse_pos) = ctx.input(|i| i.pointer.latest_pos()) {
                     let line = Shape::line(vec![parent_point, mouse_pos], Stroke::new(2.0, Color32::PURPLE));
                     painter.add(line);
@@ -170,12 +175,12 @@ impl eframe::App for Canvas {
 
         // TODO make this an egui::Scene
         let panel_response = egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("music");
+            ui.heading("infinite recess"); // TODO change font
 
             ui.horizontal(|ui| {
-                ui.menu_button("Add oscillator", |ui| {
+                ui.menu_button("add oscillator", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
-                    if ui.button("Sine").clicked() {
+                    if ui.button("sine").clicked() {
                         let (new_osc, new_osc_handler) = OscNode::new();
                         self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
@@ -183,36 +188,36 @@ impl eframe::App for Canvas {
                     }
                 });
 
-                ui.menu_button("Numeric", |ui| {
+                ui.menu_button("numeric", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
-                    if ui.button("Math").clicked() {
+                    if ui.button("math").clicked() {
                         let (new_node, node_handler) = MathNode::new();
                         self.node_parameters.push(NodeParameter::Math(node_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_node)));
                         ui.close();
                     }
                 });
-                ui.menu_button("Add controller", |ui| {
+                ui.menu_button("add controller", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
-                    if ui.button("Phasor").clicked() {
+                    if ui.button("phasor").clicked() {
                         let (new_osc, new_phasor_handler) = PhaseBender::new();
                         self.node_parameters.push(NodeParameter::Phasor(new_phasor_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }
-                    if ui.button("Metronome").clicked() {
+                    if ui.button("metronome").clicked() {
                         let (new_osc, new_metronome_handler) = MetronomeNode::new();
                         self.node_parameters.push(NodeParameter::Metronome(new_metronome_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }
-                    if ui.button("ADSR").clicked() {
+                    if ui.button("envelope").clicked() {
                         let (new_osc, new_phasor_handler) = AdsrNode::new();
                         self.node_parameters.push(NodeParameter::Adsr(new_phasor_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }
-                    if ui.button("Sequencer").clicked() {
+                    if ui.button("sequencer").clicked() {
                         let (new_osc, new_sequencer_handler) = SequencerNode::new();
                         self.node_parameters.push(NodeParameter::Sequencer(new_sequencer_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
@@ -232,7 +237,7 @@ impl eframe::App for Canvas {
         if ctx.input(|i|
             i.pointer.any_click()) 
             && panel_response.response.contains_pointer() 
-            && !ctx.is_using_pointer() 
+                && !ctx.is_using_pointer() 
         {
             self.current_mode = Mode::Normal;
         }

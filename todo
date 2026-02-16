@@ -1,6 +1,39 @@
+TODO:
+  * Fix phasor/osc integration
+    * phase bender shouldn't have a freq
+    * probably pass a slope instead -- osc can mult by that
+  * Edge deletion
+    * shift-drag on background to select edges is best I think
+    * maybe check how hard it is to make a painted area clickable
+  * Save/load patch
+  * Reverb!!
+  * Fully implement a color scheme. I hate gray!!
+  * Grid sequencer
+    * send a number (or multiple? will need to plan out voices) 
+  * tooltips
+    * ALL ports should be labelled with "type" and range
+      * waveform
+      * [-1.0, 1.0]
+    * and I'd like to coach people through basic usage
+  * more precise way to represent things like frequencies
+    * Number input gets lopped
+    * People probably want to type A4 instead of 440
+  * clock divider
+  * redo port ui
+  * "rotate" nodes
+  * oscilliscope/wiretap
+  * splitting an edge while moving a node would be SEXY
+  * sample/wav import
+  * disappear ports during animations
+
 How should I approach phasor?
 Have it built-in by default, with the option to plug in a phase node?
 Actually - have the option to split the node, becoming a different type of sine osc
+
+I think phase bender shouldn't contorl frequency
+Need to change oscs to multiply a phase rather than increase phase
+evenly? ugh but that reintroduces issues where changing frequency
+produces discontinuous waveforms.
 
 I think that edges could be interesting - 
 set a BPM and determine which measures an edge should be active for.

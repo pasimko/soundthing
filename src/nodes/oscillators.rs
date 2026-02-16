@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
 use egui::Id;
 
-use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
+use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses, PortPositions};
 use std::f32::consts::TAU;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -36,7 +36,7 @@ impl OscParameters {
     }
 }
 impl NodeUi for OscParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses {
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortPositions {
         let mut port_responses = PortResponses::new();
         let label = match self.waveform {
             Waveform::Saw => "Sawtooth Oscillator",
@@ -44,17 +44,8 @@ impl NodeUi for OscParameters {
             Waveform::Square => "Square Oscillator",
             Waveform::Tri => "Triangle Oscillator",
         };
-        egui::Window::new(label).id(Id::new(idx)).show(ctx, |ui| {
+        let window = egui::Window::new(label).id(Id::new(idx)).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                // input ports
-                ui.vertical(|ui| {
-                    let frequency_button_response = ui.add(egui::Button::new("frequency"));
-                    port_responses.inputs.push(frequency_button_response);
-                    let volume_button_response = ui.add(egui::Button::new("volume"));
-                    port_responses.inputs.push(volume_button_response);
-                    let phase_button_response = ui.add(egui::Button::new("phase"));
-                    port_responses.inputs.push(phase_button_response);
-                });
                 // sliders, other non-port UI stuff
                 ui.vertical(|ui| {
                     let freq_res = ui.add_enabled(true,
@@ -70,7 +61,7 @@ impl NodeUi for OscParameters {
                     if vol_res.changed() {
                         let _ = self.sender.send(Message::Volume(self.target_vol));
                     }
-                    ui.menu_button("waveform", |ui| {
+                    let waveform_res = ui.menu_button("waveform", |ui| {
                         ui.set_width(100.0); // To make sure we wrap long text
                         if ui.button("Sine").clicked() {
                             self.waveform = Waveform::Sine;
@@ -84,16 +75,46 @@ impl NodeUi for OscParameters {
                             self.waveform = Waveform::Saw;
                             let _ = self.sender.send(Message::Waveform(Waveform::Saw));
                         }
-                    });
-                });
-                // output ports
-                ui.vertical(|ui| {
-                    let out_button_response = ui.add(egui::Button::new("out"));
-                    port_responses.outputs.push(out_button_response);
+                    }).response;
+                    port_responses.inputs.push(freq_res);
+                    port_responses.inputs.push(vol_res);
+                    port_responses.inputs.push(waveform_res);
                 });
             });
-        });
-        port_responses
+        }).unwrap();
+
+        let mut port_positions = PortPositions::new();
+        // draw ports
+        match window.inner {
+            // If window is collapsed, return three overlapping ports and draw
+            // one of them
+            None => {
+                let in_pos = egui::Pos2::new(window.response.rect.min.x - 10., window.response.rect.min.y + 10.);
+                port_positions.outputs.push(in_pos);
+                port_positions.outputs.push(in_pos);
+                port_positions.outputs.push(in_pos);
+                let out_pos = egui::Pos2::new(window.response.rect.max.x + 10., window.response.rect.min.y + 10.);
+                port_positions.outputs.push(out_pos);
+            }
+            // Otherwise, draw
+            // freq/vol/phase in
+            // audio out
+            Some(_) => {
+                // allocate painter
+                for res in &port_responses.inputs {
+                    let painter = ctx.layer_painter(egui::LayerId::background());
+                    let pos = egui::Pos2::new(
+                        res.rect.min.x - 10.,
+                        (res.rect.min.y + res.rect.max.y) / 2.0
+                    );
+                    port_positions.inputs.push(pos);
+                    painter.circle(pos, 5.0, egui::Color32::BLACK, egui::Stroke::NONE);
+                }
+                let out_pos = egui::Pos2::new(window.response.rect.max.x + 10., window.response.rect.min.y + 10.);
+                port_positions.outputs.push(out_pos);
+            }
+        }
+        port_positions
     }
 }
 
