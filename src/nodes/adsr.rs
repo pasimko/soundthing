@@ -1,4 +1,4 @@
-use super::{Node, Message, graph, NodeUi, PortResponses, PortPositions, SAMPLERATE, ratio2pole};
+use super::{Node, Message, graph, NodeUi, PortDescriptions, SAMPLERATE, ratio2pole};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
@@ -24,11 +24,11 @@ enum State {
 }
 
 impl NodeUi for AdsrParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortPositions {
-        let mut port_responses = PortResponses::new();
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
         let window = egui::Window::new("Envelope").id(Id::new(idx)).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
+                    // TODO handle a/d/s/r messages
                     let a_res = ui.add_enabled(true, egui::DragValue::new(&mut self.a));
                     let d_res = ui.add_enabled(true, egui::DragValue::new(&mut self.d));
                     let s_res = ui.add_enabled(true, egui::DragValue::new(&mut self.s));
@@ -39,44 +39,13 @@ impl NodeUi for AdsrParameters {
                         let _ = self.sender.send(Message::Gate(self.gate));
                     }
                 });
-                // output ports
-                ui.vertical(|ui| {
-                    let out_button_response = ui.add(egui::Button::new("out"));
-                    port_responses.outputs.push(out_button_response);
-                });
             });
         }).unwrap();
 
-        let mut port_positions = PortPositions::new();
-        match window.inner {
-            // If window is collapsed, return three overlapping ports and draw
-            // one of them
-            None => {
-                let in_pos = egui::Pos2::new(window.response.rect.min.x - 10., window.response.rect.min.y + 10.);
-                port_positions.outputs.push(in_pos);
-                port_positions.outputs.push(in_pos);
-                let out_pos = egui::Pos2::new(window.response.rect.max.x + 10., window.response.rect.min.y + 10.);
-                port_positions.outputs.push(out_pos);
-            }
-            // Otherwise, draw
-            // freq/vol/phase in
-            // audio out
-            Some(_) => {
-                // allocate painter
-                for res in &port_responses.inputs {
-                    let painter = ctx.layer_painter(egui::LayerId::background());
-                    let pos = egui::Pos2::new(
-                        res.rect.min.x - 10.,
-                        (res.rect.min.y + res.rect.max.y) / 2.0
-                    );
-                    port_positions.inputs.push(pos);
-                    painter.circle(pos, 5.0, egui::Color32::BLACK, egui::Stroke::NONE);
-                }
-                let out_pos = egui::Pos2::new(window.response.rect.max.x + 10., window.response.rect.min.y + 10.);
-                port_positions.outputs.push(out_pos);
-            }
-        }
-        port_positions
+        (PortDescriptions::with_ports(
+            vec!["gate", "signal", "attack time", "decay time", "sustain level", "release time"],
+            vec!["signal out"]
+        ), window.response)
     }
 }
 

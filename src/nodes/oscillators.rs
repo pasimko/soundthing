@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
 use egui::Id;
 
-use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses, PortPositions};
+use super::{Node, SAMPLERATE, Message, NodeUi, PortDescriptions};
 use std::f32::consts::TAU;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -36,17 +36,15 @@ impl OscParameters {
     }
 }
 impl NodeUi for OscParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortPositions {
-        let mut port_responses = PortResponses::new();
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
         let label = match self.waveform {
             Waveform::Saw => "Sawtooth Oscillator",
             Waveform::Sine => "Sine Oscillator",
             Waveform::Square => "Square Oscillator",
-            Waveform::Tri => "Triangle Oscillator",
+            Waveform::Tri => "Triangle Oscillator"
         };
         let window = egui::Window::new(label).id(Id::new(idx)).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                // sliders, other non-port UI stuff
                 ui.vertical(|ui| {
                     let freq_res = ui.add_enabled(true,
                         egui::Slider::new(&mut self.freq, 0.001..=2000.0)
@@ -76,45 +74,14 @@ impl NodeUi for OscParameters {
                             let _ = self.sender.send(Message::Waveform(Waveform::Saw));
                         }
                     }).response;
-                    port_responses.inputs.push(freq_res);
-                    port_responses.inputs.push(vol_res);
-                    port_responses.inputs.push(waveform_res);
                 });
             });
         }).unwrap();
 
-        let mut port_positions = PortPositions::new();
-        // draw ports
-        match window.inner {
-            // If window is collapsed, return three overlapping ports and draw
-            // one of them
-            None => {
-                let in_pos = egui::Pos2::new(window.response.rect.min.x - 10., window.response.rect.min.y + 10.);
-                port_positions.outputs.push(in_pos);
-                port_positions.outputs.push(in_pos);
-                port_positions.outputs.push(in_pos);
-                let out_pos = egui::Pos2::new(window.response.rect.max.x + 10., window.response.rect.min.y + 10.);
-                port_positions.outputs.push(out_pos);
-            }
-            // Otherwise, draw
-            // freq/vol/phase in
-            // audio out
-            Some(_) => {
-                // allocate painter
-                for res in &port_responses.inputs {
-                    let painter = ctx.layer_painter(egui::LayerId::background());
-                    let pos = egui::Pos2::new(
-                        res.rect.min.x - 10.,
-                        (res.rect.min.y + res.rect.max.y) / 2.0
-                    );
-                    port_positions.inputs.push(pos);
-                    painter.circle(pos, 5.0, egui::Color32::BLACK, egui::Stroke::NONE);
-                }
-                let out_pos = egui::Pos2::new(window.response.rect.max.x + 10., window.response.rect.min.y + 10.);
-                port_positions.outputs.push(out_pos);
-            }
-        }
-        port_positions
+        (PortDescriptions::with_ports(
+            vec!["frequency", "volume", "phase"],
+            vec!["signal out"]
+        ), window.response)
     }
 }
 

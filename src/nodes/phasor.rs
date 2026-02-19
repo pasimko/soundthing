@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 
-use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
+use super::{Node, SAMPLERATE, Message, NodeUi, PortDescriptions};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
@@ -41,20 +41,9 @@ impl PhasorParameters {
 }
 
 impl NodeUi for PhasorParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses {
-        let mut port_responses = PortResponses::new();
-        egui::Window::new("Phase Bender").id(Id::new(idx)).show(ctx, |ui| {
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
+        let window = egui::Window::new("Phase Bender").id(Id::new(idx)).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                // input ports
-                ui.vertical(|ui| {
-                    let x_button_response = ui.add(egui::Button::new("x"));
-                    port_responses.inputs.push(x_button_response);
-                    let y_button_response = ui.add(egui::Button::new("y"));
-                    port_responses.inputs.push(y_button_response);
-                    let freq_button_response = ui.add(egui::Button::new("freq"));
-                    port_responses.inputs.push(freq_button_response);
-                });
-                // sliders, other non-port UI stuff
                 ui.vertical(|ui| {
                     ui.set_max_width(200.0);
                     ui.set_max_height(200.0);
@@ -91,15 +80,12 @@ impl NodeUi for PhasorParameters {
                         self.sender.send(Message::Frequency(self.freq)).unwrap();
                     }
                 });
-
-                // output ports
-                ui.vertical(|ui| {
-                    let out_button_response = ui.add(egui::Button::new("out"));
-                    port_responses.outputs.push(out_button_response);
-                });
             });
-        });
-        port_responses
+        }).unwrap();
+        (PortDescriptions::with_ports(
+            vec!["x", "y", "frequency"],
+            vec!["phase"]
+        ), window.response)
     }
 }
 

@@ -1,6 +1,7 @@
 use std::sync::mpsc::Sender;
+use crate::nodes::PortDescriptions;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
+use super::{Node, SAMPLERATE, Message, NodeUi};
 use egui::Id;
 
 use std::sync::mpsc::channel;
@@ -26,17 +27,11 @@ impl MetronomeParameters {
 }
 
 impl NodeUi for MetronomeParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses {
-        let mut port_responses = PortResponses::new();
-        egui::Window::new("Metronome").id(Id::new(idx)).show(ctx, |ui| {
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
+        let window = egui::Window::new("Metronome").id(Id::new(idx)).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                // port buttons
                 ui.vertical(|ui| {
-                    let bpm_button_response = ui.add(egui::Button::new("bpm"));
-                    port_responses.inputs.push(bpm_button_response);
-                });
-                ui.vertical(|ui| {
-                    ui.set_width(100.0); // To make sure we wrap long text
+                    ui.set_width(100.0);
                     let bpm_res = ui.add_enabled(true,
                         egui::Slider::new(&mut self.bpm, 0.1..=2000.0)
                         .text("bpm")
@@ -46,14 +41,12 @@ impl NodeUi for MetronomeParameters {
                         let _ = self.sender.send(Message::Bpm(self.bpm));
                     }
                 });
-                // output ports
-                ui.vertical(|ui| {
-                    let out_button_response = ui.add(egui::Button::new("out"));
-                    port_responses.outputs.push(out_button_response);
-                });
             });
-        });
-        port_responses
+        }).unwrap();
+        (PortDescriptions::with_ports(
+            vec!["bpm"],
+            vec!["pulse out"]
+        ), window.response)
     }
 }
 

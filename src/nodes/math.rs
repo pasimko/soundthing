@@ -1,6 +1,7 @@
 use std::sync::mpsc::Sender;
+use crate::nodes::PortDescriptions;
 use crate::nodes::graph;
-use super::{Node, Message, NodeUi, PortResponses, math};
+use super::{Node, Message, NodeUi, math};
 
 use egui::Id;
 use std::sync::mpsc::channel;
@@ -33,19 +34,9 @@ impl MathParameters {
 }
 
 impl NodeUi for MathParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses {
-        let mut port_responses = PortResponses::new();
-        egui::Window::new("Math").id(Id::new(idx)).show(ctx, |ui| {
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
+        let window = egui::Window::new("Math").id(Id::new(idx)).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                // port buttons
-                ui.vertical(|ui| {
-                    let a_button_response = ui.add(egui::Button::new("a"));
-                    port_responses.inputs.push(a_button_response);
-
-                    let b_button_response = ui.add(egui::Button::new("b"));
-                    port_responses.inputs.push(b_button_response);
-                });
-
                 let op = match self.operation {
                     math::Operation::Add => "+",
                     math::Operation::Mul => "*",
@@ -76,14 +67,13 @@ impl NodeUi for MathParameters {
                         let _ = self.sender.send(Message::SetB(self.b));
                     }
                 });
-                // output ports
-                ui.vertical(|ui| {
-                    let out_button_response = ui.add(egui::Button::new("out"));
-                    port_responses.outputs.push(out_button_response);
-                });
             });
-        });
-        port_responses
+        }).unwrap();
+
+        (PortDescriptions::with_ports(
+            vec!["a", "b"],
+            vec!["result"]
+        ), window.response)
     }
 }
 

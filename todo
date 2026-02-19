@@ -14,6 +14,7 @@ TODO:
     * ALL ports should be labelled with "type" and range
       * waveform
       * [-1.0, 1.0]
+      * on hover
     * and I'd like to coach people through basic usage
   * more precise way to represent things like frequencies
     * Number input gets lopped
@@ -24,7 +25,8 @@ TODO:
   * oscilliscope/wiretap
   * splitting an edge while moving a node would be SEXY
   * sample/wav import
-  * disappear ports during animations
+  * display ports only when relevant animations are complete
+  * pan around the canvas
 
 How should I approach phasor?
 Have it built-in by default, with the option to plug in a phase node?

@@ -60,33 +60,25 @@ pub enum Message {
 }
 
 pub trait NodeUi {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortPositions;
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response);
 }
 
-pub struct PortResponses {
-    pub inputs: Vec<egui::Response>,
-    pub outputs: Vec<egui::Response>,
+pub struct PortDescriptions {
+    pub inputs: Vec<&'static str>,
+    pub outputs: Vec<&'static str>,
 }
 
-impl PortResponses {
+impl PortDescriptions {
     pub fn new() -> Self {
         Self {
-            inputs: vec!(),
-            outputs: vec!(),
+            inputs: Vec::new(),
+            outputs: Vec::new(),
         }
     }
-}
-
-pub struct PortPositions {
-    pub inputs: Vec<egui::Pos2>,
-    pub outputs: Vec<egui::Pos2>,
-}
-
-impl PortPositions {
-    pub fn new() -> Self {
+    pub fn with_ports(inputs: Vec<&'static str>, outputs: Vec<&'static str>) -> Self {
         Self {
-            inputs: vec!(),
-            outputs: vec!(),
+            inputs,
+            outputs,
         }
     }
 }

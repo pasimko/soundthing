@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, Message, NodeUi, PortResponses};
+use super::{Node, SAMPLERATE, Message, NodeUi, PortDescriptions};
 use egui::Id;
 
 use std::sync::mpsc::channel;
@@ -19,15 +19,9 @@ impl SequencerParameters {
 }
 
 impl NodeUi for SequencerParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses {
-        let mut port_responses = PortResponses::new();
-        egui::Window::new("Sequencer").id(Id::new(idx)).show(ctx, |ui| {
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
+        let window = egui::Window::new("Sequencer").id(Id::new(idx)).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                // port buttons
-                ui.vertical(|ui| {
-                    let sequence_button_response = ui.add(egui::Button::new("trigger"));
-                    port_responses.inputs.push(sequence_button_response);
-                });
                 ui.vertical(|ui| {
                     let mut changed = false;
                     for val in self.sequence.iter_mut() {
@@ -40,14 +34,12 @@ impl NodeUi for SequencerParameters {
                         let _ = self.sender.send(Message::Sequence(self.sequence.clone()));
                     }
                 });
-                // output ports
-                ui.vertical(|ui| {
-                    let out_button_response = ui.add(egui::Button::new("out"));
-                    port_responses.outputs.push(out_button_response);
-                });
             });
-        });
-        port_responses
+        }).unwrap();
+        (PortDescriptions::with_ports(
+            vec!["trigger pulse"],
+            vec!["signal out"]
+        ), window.response)
     }
 }
 

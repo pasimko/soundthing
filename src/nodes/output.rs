@@ -3,8 +3,8 @@
 //
 
 use std::iter::zip;
-use crate::graph;
-use super::{Node, NodeUi, PortResponses};
+use crate::{graph, nodes::{PortDescriptions}};
+use super::{Node, NodeUi};
 
 
 use egui::Id;
@@ -22,15 +22,12 @@ pub struct OutputParameters {
 }
 
 impl NodeUi for OutputParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> PortResponses {
-        let mut port_responses = PortResponses::new();
-        egui::Window::new(self.name.clone()).id(Id::new(idx)).show(ctx, |ui| {
-            ui.vertical(|ui| {
-                let in_button_response = ui.add(egui::Button::new("in"));
-                port_responses.inputs.push(in_button_response);
-            });
-        });
-        port_responses
+    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
+        let window = egui::Window::new(self.name.clone()).id(Id::new(idx)).show(ctx, |_| { }).unwrap();
+        (PortDescriptions::with_ports(
+            vec!["audio input"],
+            vec![]
+        ), window.response)
     }
 }
 

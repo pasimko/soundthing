@@ -7,7 +7,7 @@ use egui::{
 
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
-math::MathNode, PortResponses, metronome::MetronomeNode, sequencer::SequencerNode,
+math::MathNode, PortDescriptions, metronome::MetronomeNode, sequencer::SequencerNode,
 phasor::PhaseBender};
 
 enum Mode {
@@ -21,6 +21,21 @@ pub struct Canvas {
     node_parameters: Vec<NodeParameter>,
     incoming_edges: Vec<graph::Edge>,
     current_mode: Mode,
+    scene_rect: egui::Rect,
+}
+
+pub struct PortPositions {
+    inputs: Vec<egui::Pos2>,
+    outputs: Vec<egui::Pos2>,
+}
+
+impl PortPositions {
+    fn new() -> Self {
+        PortPositions {
+            inputs: Vec::new(),
+            outputs: Vec::new()
+        }
+    }
 }
 
 impl Canvas {
@@ -33,27 +48,49 @@ impl Canvas {
             node_parameters: vec![NodeParameter::Output(output_handler)],
             incoming_edges: vec!(),
             current_mode: Mode::Normal,
+            scene_rect: egui::Rect::ZERO,
         }
     }
     // TODO make this not 1000 lines long
-    pub fn render_nodes(&mut self, ctx: &egui::Context) {
-        let mut responses: Vec<PortResponses> = vec!();
+    pub fn render_nodes(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+        let mut port_positions = Vec::new();
         for (idx, p) in self.node_parameters.iter_mut().enumerate() {
+            port_positions.push(PortPositions::new());
+            let mut port_info : Option<(PortDescriptions, egui::Response)> = None;
             match p {
-                NodeParameter::Osc(p) => responses.push(p.draw(ctx, idx)),
-                NodeParameter::Phasor(p) => responses.push(p.draw(ctx, idx)),
-                NodeParameter::Adsr(p) => responses.push(p.draw(ctx, idx)),
-                NodeParameter::Math(p) => responses.push(p.draw(ctx, idx)),
-                NodeParameter::Output(p) => responses.push(p.draw(ctx, idx)),
-                NodeParameter::Metronome(p) => responses.push(p.draw(ctx, idx)),
-                NodeParameter::Sequencer(p) => responses.push(p.draw(ctx, idx)),
+                NodeParameter::Osc(p) => port_info = Some(p.draw(ctx, idx)),
+                NodeParameter::Phasor(p) => port_info = Some(p.draw(ctx, idx)),
+                NodeParameter::Adsr(p) => port_info = Some(p.draw(ctx, idx)),
+                NodeParameter::Math(p) => port_info = Some(p.draw(ctx, idx)),
+                NodeParameter::Output(p) => port_info = Some(p.draw(ctx, idx)),
+                NodeParameter::Metronome(p) => port_info = Some(p.draw(ctx, idx)),
+                NodeParameter::Sequencer(p) => port_info = Some(p.draw(ctx, idx)),
+                _ => {}
             }
-        }
-        // Edge creation
-        for (idx, node) in responses.iter().enumerate() {
-            for (jdx, port) in node.inputs.iter().enumerate() {
-                if port.clicked() {
-                    let current_node = (graph::NodeId(idx), graph::PortId(jdx));
+
+            // Draw ports
+            let port_info = port_info.unwrap();
+            let port_descriptions = port_info.0;
+            let node_window_response = port_info.1;
+            let painter = ctx.layer_painter(node_window_response.layer_id);
+
+            // inputs
+            for (port_idx, port_label) in port_descriptions.inputs.iter().enumerate() {
+                let mut port_size = 5.5;
+                let mut input_pos = node_window_response.rect.left_top();
+                input_pos.x -= 10.;
+                input_pos.y += port_size * 2. + 18. * port_idx as f32;
+                port_positions[idx].inputs.push(input_pos);
+                // sense clicks on port positions
+                let button_rect = egui::Rect::from_pos(input_pos).expand(8.0);
+                let port_id = node_window_response.id.with((port_idx + 1) * 100); // stupid. just preventing overlap
+                let port_response = ui.interact(button_rect, port_id, egui::Sense::click());
+                if port_response.hovered() {
+                    port_size = 7.0;
+                }
+                painter.circle(input_pos, port_size, egui::Color32::BLACK, egui::Stroke::NONE);
+                if port_response.clicked() {
+                    let current_node = (graph::NodeId(idx), graph::PortId(port_idx));
                     match self.current_mode {
                         // Finish creating new edge
                         Mode::SelectSink(node_id, port) => {
@@ -73,9 +110,24 @@ impl Canvas {
                     }
                 }
             }
-            for (jdx, port) in node.outputs.iter().enumerate() {
-                if port.clicked() {
-                    let current_node = (graph::NodeId(idx), graph::PortId(jdx));
+
+            // outputs
+            for (port_idx, port_label) in port_descriptions.outputs.iter().enumerate() {
+                let mut port_size = 5.5;
+                let mut port_pos = node_window_response.rect.right_top();
+                port_pos.x += 10.;
+                port_pos.y += port_size * 2. + 18. * port_idx as f32;
+                port_positions[idx].outputs.push(port_pos);
+                // sense clicks on port positions
+                let button_rect = egui::Rect::from_pos(port_pos).expand(8.0);
+                let port_id = node_window_response.id.with(port_idx);
+                let port_response = ui.interact(button_rect, port_id, egui::Sense::click());
+                if port_response.hovered() {
+                    port_size = 7.0;
+                }
+                painter.circle(port_pos, port_size, egui::Color32::BLACK, egui::Stroke::NONE);
+                if port_response.clicked() {
+                    let current_node = (graph::NodeId(idx), graph::PortId(port_idx));
                     match self.current_mode {
                         // Finish creating new edge
                         Mode::SelectSource(node_id, port) => {
@@ -96,57 +148,34 @@ impl Canvas {
                 }
             }
         }
-
         // Draw edges
-        // TODO this breaks if a widget isn't drawn -- collapsed window, maybe other cases
-        // Switching to an ID system would help, probably
         let painter = ctx.layer_painter(egui::LayerId::background());
         for edge in self.incoming_edges.iter() {
             let source_idx = edge.from.0.0;
             let sink_idx = edge.to.0.0;
-            let source_port_response = &responses[source_idx].outputs[edge.from.1.0];
-            let sink_port_response = &responses[sink_idx].inputs[edge.to.1.0];
+            let source_port_pos = port_positions[source_idx].outputs[edge.from.1.0];
+            let sink_port_pos = port_positions[sink_idx].inputs[edge.to.1.0];
 
-            // source port coords
-            let (top_left, bot_right) = (source_port_response.rect.min, source_port_response.rect.max);
-            let parent_point = Pos2::new(bot_right.x, (top_left.y+bot_right.y) / 2.);
-
-            // sink port coords
-            let (top_left, bot_right) = (sink_port_response.rect.min, sink_port_response.rect.max);
-            let child_point = Pos2::new(top_left.x, (top_left.y+bot_right.y) / 2.);
-
-            let line = Shape::line(vec![parent_point, child_point], Stroke::new(2.0, Color32::GRAY));
-            painter.add(line);
+            painter.line(vec![source_port_pos, sink_port_pos], Stroke::new(2.0, Color32::GRAY));
         }
 
         // Draw the edge currently being created in a special color
         let painter = ctx.layer_painter(egui::LayerId::new(egui::layers::Order::Foreground, Id::new("ephemeral interaction")));
         match self.current_mode {
             Mode::SelectSource(node_id, port) => {
-                let sink_port_response = &responses[node_id.0].inputs[port.0];
-
-                // source port coords
-                let (top_left, bot_right) = (sink_port_response.rect.min, sink_port_response.rect.max);
-                let parent_point = Pos2::new(top_left.x, (top_left.y+bot_right.y) / 2.);
+                let sink_port_pos = port_positions[node_id.0].inputs[port.0];
 
                 // draw the line
                 if let Some(mouse_pos) = ctx.input(|i| i.pointer.latest_pos()) {
-                    let line = Shape::line(vec![parent_point, mouse_pos], Stroke::new(2.0, Color32::PURPLE));
-                    painter.add(line);
+                    painter.line(vec![sink_port_pos, mouse_pos], Stroke::new(2.0, Color32::PURPLE));
                 }
             }
             Mode::SelectSink(node_id, port) => {
-                let source_port_response = &responses[node_id.0]
-                    .outputs[port.0];
+                let source_port_pos = port_positions[node_id.0].outputs[port.0];
 
-                // source port coords
-                let (top_left, bot_right) = (source_port_response.rect.min, source_port_response.rect.max);
-                let parent_point = Pos2::new(bot_right.x, (top_left.y+bot_right.y) / 2.);
-                
                 // draw the line
                 if let Some(mouse_pos) = ctx.input(|i| i.pointer.latest_pos()) {
-                    let line = Shape::line(vec![parent_point, mouse_pos], Stroke::new(2.0, Color32::PURPLE));
-                    painter.add(line);
+                    painter.line(vec![source_port_pos, mouse_pos], Stroke::new(2.0, Color32::PURPLE));
                 }
             }
             _ => {}
@@ -173,9 +202,15 @@ impl eframe::App for Canvas {
             });
         });
 
-        // TODO make this an egui::Scene
         let panel_response = egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("infinite recess"); // TODO change font
+            // TODO hotkeys and stuff here probably
+            let bg_id = ui.id().with("bg_click");
+            let bg_response = ui.interact(ui.max_rect(), bg_id, egui::Sense::click());
+            if bg_response.clicked() {
+                self.current_mode = Mode::Normal;
+            }
+
+            ui.heading("infinite recess");
 
             ui.horizontal(|ui| {
                 ui.menu_button("add oscillator", |ui| {
@@ -231,15 +266,10 @@ impl eframe::App for Canvas {
                 egui::warn_if_debug_build(ui);
             });
 
-            self.render_nodes(ctx);
+
+            // TODO pan/zoom with
+            // https://docs.rs/egui/latest/egui/struct.Context.html#method.set_transform_layer
+            self.render_nodes(ctx, ui);
         });
-        // TODO hotkeys here?
-        if ctx.input(|i|
-            i.pointer.any_click()) 
-            && panel_response.response.contains_pointer() 
-                && !ctx.is_using_pointer() 
-        {
-            self.current_mode = Mode::Normal;
-        }
     }
 }
