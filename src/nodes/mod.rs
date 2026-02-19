@@ -42,9 +42,8 @@ pub enum NodeParameter {
     Sequencer(SequencerParameters),
 }
 
-// I don't love this - added because TimerNode needs to be able
-// to send a message to any Node and this seemed simplest
-// TODO split up this god enum
+// I don't love this
+// TODO split up this god enum?
 #[derive(Clone)]
 pub enum Message {
     Frequency(f32),
@@ -57,6 +56,10 @@ pub enum Message {
     Operation(math::Operation),
     Bpm(f32),
     Sequence(Vec<f32>),
+    Attack(f32),
+    Decay(f32),
+    Sustain(f32),
+    Release(f32),
 }
 
 pub trait NodeUi {

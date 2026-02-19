@@ -38,6 +38,18 @@ impl NodeUi for AdsrParameters {
                         self.gate = !self.gate; 
                         let _ = self.sender.send(Message::Gate(self.gate));
                     }
+                    if a_res.changed() {
+                        let _ = self.sender.send(Message::Attack(self.a));
+                    }
+                    if d_res.changed() {
+                        let _ = self.sender.send(Message::Decay(self.d));
+                    }
+                    if s_res.changed() {
+                        let _ = self.sender.send(Message::Sustain(self.s));
+                    }
+                    if r_res.changed() {
+                        let _ = self.sender.send(Message::Release(self.r));
+                    }
                 });
             });
         }).unwrap();
@@ -87,7 +99,16 @@ impl AdsrNode {
 impl Node for AdsrNode {
     fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
         let msg = self.msg_receiver.try_recv();
-        if let Ok(msg) = msg { if let Message::Gate(val) = msg { self.params.gate = val } };
+        if let Ok(msg) = msg {
+            match msg {
+                Message::Gate(val) => { self.params.gate = val },
+                Message::Attack(val) => { self.params.a = val },
+                Message::Decay(val) => { self.params.d = val },
+                Message::Sustain(val) => { self.params.s = val },
+                Message::Release(val) => { self.params.r = val },
+                _ => {}
+            }
+        };
         // If we have inputs, use these buffers
         let mut gate_buf = None;
         let mut signal_buf = None;
@@ -99,9 +120,10 @@ impl Node for AdsrNode {
             match port.0 {
                 0 => gate_buf = Some(buffer),
                 1 => signal_buf = Some(buffer),
-                _ => {}
+                _ => {} // TODO adsr
             }
         }
+        // TODO this is implemented wrong
         for i in 0..output.len() {
             let gate = gate_buf
                 .map(|b| b[i])
