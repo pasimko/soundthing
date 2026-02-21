@@ -79,7 +79,7 @@ impl AdsrNode {
             a: 0.1,
             d: 0.1,
             s: 0.8,
-            r: 2.0,
+            r: 1.0,
             name: "ADSR".to_string(),
             sender: msg_sender,
         };
@@ -134,11 +134,10 @@ impl Node for AdsrNode {
                 .unwrap_or(0.0);
 
             if gate > self.last_gate {
-                self.tick = 0;
                 self.state = State::Attack;
+                self.last_gate = gate;
             }
             else if gate == 0.0 {
-                self.tick = 0;
                 self.state = State::Release;
             }
 
@@ -150,32 +149,35 @@ impl Node for AdsrNode {
                     self.current_out = 0.0;
                 },
                 State::Attack => {
-                    self.tick += 1;
-                    if self.tick as f32 / SAMPLERATE as f32 >= self.params.a {
-                        self.tick = 0;
-                        self.state = State::Decay;
-                    }
                     target = 1.+f32::EPSILON;
                     pole = ratio2pole(self.params.a, f32::EPSILON/target);
+                    self.current_out = (1.-pole)*target + pole*self.current_out;
+                    if self.current_out >= 0.99 {
+                        self.state = State::Decay;
+                    }
                 },
                 State::Decay => {
-                    self.tick += 1;
-                    if self.tick as f32 / SAMPLERATE as f32 >= self.params.d {
+                    target = self.params.s-f32::EPSILON;
+                    pole = ratio2pole(self.params.d, f32::EPSILON/target);
+                    self.current_out = (1.-pole)*target + pole*self.current_out;
+                    if self.current_out <= self.params.s {
                         self.state = State::Sustain;
                     }
-                    pole = ratio2pole(self.params.d, f32::EPSILON/(1.-self.params.s+f32::EPSILON));
                 },
                 State::Sustain => {
                     self.current_out = self.params.s;
                 },
                 State::Release => {
-                    self.tick += 1;
-                    self.last_gate = 0.0;
+                    self.last_gate = 0.0; // removing this line makes it impossible to trigger a
+                                          // second attack
                     target = -f32::EPSILON;
                     pole = ratio2pole(self.params.r, f32::EPSILON/(self.params.s+f32::EPSILON));
+                    self.current_out = (1.-pole)*target + pole*self.current_out;
+                    if self.current_out <= 0. {
+                        self.state = State::Idle;
+                    }
                 }
             };
-            self.current_out = (1.-pole)*target + pole*self.current_out;
             output[i] = signal * self.current_out;
 
             // output[i] = (phase * TAU).sin() * (vol / 100.0);

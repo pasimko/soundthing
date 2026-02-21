@@ -52,7 +52,8 @@ impl NodeUi for OscParameters {
                         .logarithmic(true));
                     let vol_res = ui.add_enabled(true,
                         egui::Slider::new(&mut self.target_vol, 0..=100)
-                        .text("volume"));
+                        .text("volume")
+                        .logarithmic(true));
                     if freq_res.changed() {
                         let _ = self.sender.send(Message::Frequency(self.freq));
                     }

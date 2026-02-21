@@ -27,6 +27,9 @@ TODO:
   * sample/wav import
   * display ports only when relevant animations are complete
   * pan around the canvas
+  * interpolator
+  * collisions on ports are kinda bad. need to get input layer
+    settled
 
 How should I approach phasor?
 Have it built-in by default, with the option to plug in a phase node?
