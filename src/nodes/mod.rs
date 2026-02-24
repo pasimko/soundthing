@@ -93,5 +93,5 @@ pub fn vol_smooth(target: f32, start: f32, n: i32) -> f32 {
 }
 
 fn ratio2pole(t: f32, ratio: f32) -> f32 {
-    return ratio.powf(1./(t*SAMPLERATE as f32));
+    return ratio.powf(1./((t+f32::EPSILON)*SAMPLERATE as f32));
 }

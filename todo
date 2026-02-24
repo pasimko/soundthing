@@ -30,6 +30,8 @@ TODO:
   * interpolator
   * collisions on ports are kinda bad. need to get input layer
     settled
+  * fix adsr crashing when sus is 0 :(
+    * why no panic in console??
 
 How should I approach phasor?
 Have it built-in by default, with the option to plug in a phase node?
