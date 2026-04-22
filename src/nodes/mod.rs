@@ -7,18 +7,20 @@ use crate::nodes::{
     graph::{PortId},
     math::*,
     metronome::*,
+    noise::*,
     sequencer::*,
 };
 
-pub mod oscillators;
+// pub mod timer;
 pub mod adsr;
 pub mod delay;
+pub mod math;
 pub mod metronome;
-pub mod sequencer;
-// pub mod timer;
+pub mod noise;
+pub mod oscillators;
 pub mod output;
 pub mod phasor;
-pub mod math;
+pub mod sequencer;
 
 pub mod graph;
 
@@ -43,6 +45,7 @@ pub enum NodeParameter {
     Output(OutputParameters),
     Phasor(PhasorParameters),
     Sequencer(SequencerParameters),
+    Noise(NoiseParameters),
 }
 
 // I don't love this

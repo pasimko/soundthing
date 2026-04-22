@@ -7,7 +7,7 @@ use egui::{
 
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
-math::MathNode, PortDescriptions, metronome::MetronomeNode, sequencer::SequencerNode,
+math::MathNode, PortDescriptions, metronome::MetronomeNode, sequencer::SequencerNode, noise::NoiseNode,
 phasor::PhaseBender, delay::DelayNode};
 
 enum Mode {
@@ -66,6 +66,7 @@ impl Canvas {
                 NodeParameter::Metronome(p) => port_info = Some(p.draw(ctx, idx)),
                 NodeParameter::Sequencer(p) => port_info = Some(p.draw(ctx, idx)),
                 NodeParameter::Delay(p) => port_info = Some(p.draw(ctx, idx)),
+                NodeParameter::Noise(p) => port_info = Some(p.draw(ctx, idx)),
                 _ => {}
             }
 
@@ -214,12 +215,18 @@ impl eframe::App for Canvas {
             ui.heading("infinite recess");
 
             ui.horizontal(|ui| {
-                ui.menu_button("add oscillator", |ui| {
+                ui.menu_button("audio", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
-                    if ui.button("sine").clicked() {
+                    if ui.button("oscillator").clicked() {
                         let (new_osc, new_osc_handler) = OscNode::new();
                         self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
+                        ui.close();
+                    }
+                    if ui.button("noise").clicked() {
+                        let (new_noise, new_noise_handler) = NoiseNode::new();
+                        self.node_parameters.push(NodeParameter::Noise(new_noise_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_noise)));
                         ui.close();
                     }
                 });
