@@ -1,4 +1,5 @@
 TODO:
+  * Multiple outputs
   * Fix phasor/osc integration
     * phase bender shouldn't have a freq
     * probably pass a slope instead -- osc can mult by that

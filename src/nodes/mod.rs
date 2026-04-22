@@ -1,5 +1,6 @@
 use crate::nodes::{
     adsr::{AdsrParameters},
+    delay::*,
     oscillators::*,
     output::*,
     phasor::*,
@@ -11,6 +12,7 @@ use crate::nodes::{
 
 pub mod oscillators;
 pub mod adsr;
+pub mod delay;
 pub mod metronome;
 pub mod sequencer;
 // pub mod timer;
@@ -33,12 +35,13 @@ pub trait Node {
 // but message passing should keep them synced.
 #[derive(Clone)]
 pub enum NodeParameter {
-    Osc(OscParameters),
-    Phasor(PhasorParameters),
     Adsr(AdsrParameters),
-    Output(OutputParameters),
+    Delay(DelayParameters),
     Math(MathParameters),
     Metronome(MetronomeParameters),
+    Osc(OscParameters),
+    Output(OutputParameters),
+    Phasor(PhasorParameters),
     Sequencer(SequencerParameters),
 }
 
@@ -46,20 +49,21 @@ pub enum NodeParameter {
 // TODO split up this god enum?
 #[derive(Clone)]
 pub enum Message {
+    Attack(f32),
+    Bpm(f32),
+    Decay(f32),
+    Delay(u32),
     Frequency(f32),
-    Phase(f32),
     Gate(bool),
-    Volume(u8),
-    Waveform(oscillators::Waveform),
+    Operation(math::Operation),
+    Phase(f32),
+    Release(f32),
+    Sequence(Vec<f32>),
     SetA(f32),
     SetB(f32),
-    Operation(math::Operation),
-    Bpm(f32),
-    Sequence(Vec<f32>),
-    Attack(f32),
-    Decay(f32),
     Sustain(f32),
-    Release(f32),
+    Volume(u8),
+    Waveform(oscillators::Waveform),
 }
 
 pub trait NodeUi {

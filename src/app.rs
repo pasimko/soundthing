@@ -8,7 +8,7 @@ use egui::{
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
 math::MathNode, PortDescriptions, metronome::MetronomeNode, sequencer::SequencerNode,
-phasor::PhaseBender};
+phasor::PhaseBender, delay::DelayNode};
 
 enum Mode {
     Normal,
@@ -65,6 +65,7 @@ impl Canvas {
                 NodeParameter::Output(p) => port_info = Some(p.draw(ctx, idx)),
                 NodeParameter::Metronome(p) => port_info = Some(p.draw(ctx, idx)),
                 NodeParameter::Sequencer(p) => port_info = Some(p.draw(ctx, idx)),
+                NodeParameter::Delay(p) => port_info = Some(p.draw(ctx, idx)),
                 _ => {}
             }
 
@@ -259,7 +260,14 @@ impl eframe::App for Canvas {
                         ui.close();
                     }
                 });
-
+                ui.menu_button("effects", |ui| {
+                    if ui.button("delay").clicked() {
+                        let (new_delay, new_delay_handler) = DelayNode::new();
+                        self.node_parameters.push(NodeParameter::Delay(new_delay_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_delay)));
+                        ui.close();
+                    }
+                });
             });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
