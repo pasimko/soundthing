@@ -143,7 +143,7 @@ impl Node for PhaseBender {
                 .unwrap_or(self.params.point.0);
             let y = y_buf
                 .map(|b| b[i])
-                .unwrap_or(self.params.point.1);
+                .unwrap_or(1. - self.params.point.1);
             let freq = freq_buf
                 .map(|b| b[i])
                 .unwrap_or(self.params.freq);
