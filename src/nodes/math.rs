@@ -3,7 +3,6 @@ use crate::nodes::PortDescriptions;
 use crate::nodes::graph;
 use super::{Node, NodeUi, math, drain_messages};
 
-use egui::Id;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
@@ -39,46 +38,55 @@ impl MathParameters {
 }
 
 impl NodeUi for MathParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
-        let window = egui::Window::new("Math").id(Id::new(idx)).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                let op = match self.operation {
-                    math::Operation::Add => "+",
-                    math::Operation::Mul => "*",
-                    math::Operation::Exp => "^",
-                };
-                ui.vertical(|ui| {
-                    let a_res = ui.add_enabled(true, egui::DragValue::new(&mut self.a));
-                    ui.menu_button(op, |ui| {
-                        ui.set_width(100.0); // To make sure we wrap long text
-                        if ui.button("+").clicked() {
-                            self.operation = math::Operation::Add;
-                            let _ = self.sender.send(MathMessage::Operation(math::Operation::Add));
-                        }
-                        if ui.button("*").clicked() {
-                            self.operation = math::Operation::Mul;
-                            let _ = self.sender.send(MathMessage::Operation(math::Operation::Mul));
-                        }
-                        if ui.button("^").clicked() {
-                            self.operation = math::Operation::Exp;
-                            let _ = self.sender.send(MathMessage::Operation(math::Operation::Exp));
-                        }
-                    });
-                    let b_res = ui.add_enabled(true, egui::DragValue::new(&mut self.b));
-                    if a_res.changed() {
-                        let _ = self.sender.send(MathMessage::SetA(self.a));
-                    }
-                    if b_res.changed() {
-                        let _ = self.sender.send(MathMessage::SetB(self.b));
-                    }
-                });
-            });
-        }).unwrap();
+    fn duplicate(&self) -> Option<(Box<dyn Node>, Box<dyn NodeUi>)> {
+        let (node, params) = MathNode::from_params(self.clone());
+        Some((Box::new(node), Box::new(params)))
+    }
 
-        (PortDescriptions::with_ports(
+    fn title(&self) -> String {
+        "Math".to_string()
+    }
+
+    fn ports(&self) -> PortDescriptions {
+        PortDescriptions::with_ports(
             vec!["a", "b"],
             vec!["result"]
-        ), window.response)
+        )
+    }
+
+    fn draw(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            let op = match self.operation {
+                math::Operation::Add => "+",
+                math::Operation::Mul => "*",
+                math::Operation::Exp => "^",
+            };
+            ui.vertical(|ui| {
+                let a_res = ui.add_enabled(true, egui::DragValue::new(&mut self.a));
+                ui.menu_button(op, |ui| {
+                    ui.set_width(100.0); // To make sure we wrap long text
+                    if ui.button("+").clicked() {
+                        self.operation = math::Operation::Add;
+                        let _ = self.sender.send(MathMessage::Operation(math::Operation::Add));
+                    }
+                    if ui.button("*").clicked() {
+                        self.operation = math::Operation::Mul;
+                        let _ = self.sender.send(MathMessage::Operation(math::Operation::Mul));
+                    }
+                    if ui.button("^").clicked() {
+                        self.operation = math::Operation::Exp;
+                        let _ = self.sender.send(MathMessage::Operation(math::Operation::Exp));
+                    }
+                });
+                let b_res = ui.add_enabled(true, egui::DragValue::new(&mut self.b));
+                if a_res.changed() {
+                    let _ = self.sender.send(MathMessage::SetA(self.a));
+                }
+                if b_res.changed() {
+                    let _ = self.sender.send(MathMessage::SetB(self.b));
+                }
+            });
+        });
     }
 }
 
@@ -96,6 +104,16 @@ impl MathNode {
             sender: msg_sender,
             operation: Operation::Mul,
         };
+        Self::build(params, msg_receiver)
+    }
+
+    pub fn from_params(mut params: MathParameters) -> (Self, MathParameters) {
+        let (msg_sender, msg_receiver) = channel();
+        params.sender = msg_sender;
+        Self::build(params, msg_receiver)
+    }
+
+    fn build(params: MathParameters, msg_receiver: Receiver<MathMessage>) -> (Self, MathParameters) {
         let handler = params.clone();
         (Self {
             params,

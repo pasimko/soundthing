@@ -1,7 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
 use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
-use egui::Id;
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -25,27 +24,37 @@ impl SequencerParameters {
 }
 
 impl NodeUi for SequencerParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
-        let window = egui::Window::new("Sequencer").id(Id::new(idx)).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    let mut changed = false;
-                    for val in self.sequence.iter_mut() {
-                        let val_res = ui.add_enabled(true, egui::DragValue::new(val));
-                        if val_res.changed() {
-                            changed = true;
-                        }
-                    }
-                    if changed {
-                        let _ = self.sender.send(SequencerMessage::Sequence(self.sequence.clone()));
-                    }
-                });
-            });
-        }).unwrap();
-        (PortDescriptions::with_ports(
+    fn duplicate(&self) -> Option<(Box<dyn Node>, Box<dyn NodeUi>)> {
+        let (node, params) = SequencerNode::from_params(self.clone());
+        Some((Box::new(node), Box::new(params)))
+    }
+
+    fn title(&self) -> String {
+        "Sequencer".to_string()
+    }
+
+    fn ports(&self) -> PortDescriptions {
+        PortDescriptions::with_ports(
             vec!["trigger pulse"],
             vec!["signal out"]
-        ), window.response)
+        )
+    }
+
+    fn draw(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                let mut changed = false;
+                for val in self.sequence.iter_mut() {
+                    let val_res = ui.add_enabled(true, egui::DragValue::new(val));
+                    if val_res.changed() {
+                        changed = true;
+                    }
+                }
+                if changed {
+                    let _ = self.sender.send(SequencerMessage::Sequence(self.sequence.clone()));
+                }
+            });
+        });
     }
 }
 
@@ -62,6 +71,16 @@ impl SequencerNode {
             sequence: vec![220., 275., 220.-55., 330.],
             sender: msg_sender,
         };
+        Self::build(params, msg_receiver)
+    }
+
+    pub fn from_params(mut params: SequencerParameters) -> (Self, SequencerParameters) {
+        let (msg_sender, msg_receiver) = channel();
+        params.sender = msg_sender;
+        Self::build(params, msg_receiver)
+    }
+
+    fn build(params: SequencerParameters, msg_receiver: Receiver<SequencerMessage>) -> (Self, SequencerParameters) {
         let handler = params.clone();
         (Self {
             params,

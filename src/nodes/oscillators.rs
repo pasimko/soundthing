@@ -1,6 +1,5 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use egui::Id;
 
 use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 use std::f32::consts::TAU;
@@ -41,53 +40,62 @@ impl OscParameters {
     }
 }
 impl NodeUi for OscParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
+    fn duplicate(&self) -> Option<(Box<dyn Node>, Box<dyn NodeUi>)> {
+        let (node, params) = OscNode::from_params(self.clone());
+        Some((Box::new(node), Box::new(params)))
+    }
+
+    fn title(&self) -> String {
         let label = match self.waveform {
             Waveform::Saw => "Sawtooth Oscillator",
             Waveform::Sine => "Sine Oscillator",
             Waveform::Square => "Square Oscillator",
             Waveform::Tri => "Triangle Oscillator"
         };
-        let window = egui::Window::new(label).id(Id::new(idx)).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    let freq_res = ui.add_enabled(true,
-                        egui::Slider::new(&mut self.freq, 0.001..=2000.0)
-                        .text("frequency")
-                        .logarithmic(true));
-                    let vol_res = ui.add_enabled(true,
-                        egui::Slider::new(&mut self.target_vol, 0..=100)
-                        .text("volume")
-                        .logarithmic(true));
-                    if freq_res.changed() {
-                        let _ = self.sender.send(OscMessage::Frequency(self.freq));
-                    }
-                    if vol_res.changed() {
-                        let _ = self.sender.send(OscMessage::Volume(self.target_vol));
-                    }
-                    let waveform_res = ui.menu_button("waveform", |ui| {
-                        ui.set_width(100.0); // To make sure we wrap long text
-                        if ui.button("Sine").clicked() {
-                            self.waveform = Waveform::Sine;
-                            let _ = self.sender.send(OscMessage::Waveform(Waveform::Sine));
-                        }
-                        if ui.button("Square").clicked() {
-                            self.waveform = Waveform::Square;
-                            let _ = self.sender.send(OscMessage::Waveform(Waveform::Square));
-                        }
-                        if ui.button("Saw").clicked() {
-                            self.waveform = Waveform::Saw;
-                            let _ = self.sender.send(OscMessage::Waveform(Waveform::Saw));
-                        }
-                    }).response;
-                });
-            });
-        }).unwrap();
+        label.to_string()
+    }
 
-        (PortDescriptions::with_ports(
+    fn ports(&self) -> PortDescriptions {
+        PortDescriptions::with_ports(
             vec!["frequency", "volume", "phase"],
             vec!["signal out"]
-        ), window.response)
+        )
+    }
+
+    fn draw(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                let freq_res = ui.add_enabled(true,
+                    egui::Slider::new(&mut self.freq, 0.001..=2000.0)
+                    .text("frequency")
+                    .logarithmic(true));
+                let vol_res = ui.add_enabled(true,
+                    egui::Slider::new(&mut self.target_vol, 0..=100)
+                    .text("volume")
+                    .logarithmic(true));
+                if freq_res.changed() {
+                    let _ = self.sender.send(OscMessage::Frequency(self.freq));
+                }
+                if vol_res.changed() {
+                    let _ = self.sender.send(OscMessage::Volume(self.target_vol));
+                }
+                let waveform_res = ui.menu_button("waveform", |ui| {
+                    ui.set_width(100.0); // To make sure we wrap long text
+                    if ui.button("Sine").clicked() {
+                        self.waveform = Waveform::Sine;
+                        let _ = self.sender.send(OscMessage::Waveform(Waveform::Sine));
+                    }
+                    if ui.button("Square").clicked() {
+                        self.waveform = Waveform::Square;
+                        let _ = self.sender.send(OscMessage::Waveform(Waveform::Square));
+                    }
+                    if ui.button("Saw").clicked() {
+                        self.waveform = Waveform::Saw;
+                        let _ = self.sender.send(OscMessage::Waveform(Waveform::Saw));
+                    }
+                }).response;
+            });
+        });
     }
 }
 
@@ -108,6 +116,16 @@ impl OscNode {
             sender: msg_sender,
             waveform: Waveform::Sine,
         };
+        Self::build(params, msg_receiver)
+    }
+
+    pub fn from_params(mut params: OscParameters) -> (Self, OscParameters) {
+        let (msg_sender, msg_receiver) = channel();
+        params.sender = msg_sender;
+        Self::build(params, msg_receiver)
+    }
+
+    fn build(params: OscParameters, msg_receiver: Receiver<OscMessage>) -> (Self, OscParameters) {
         let handler = params.clone();
         (Self {
             params,

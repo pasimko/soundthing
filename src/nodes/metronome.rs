@@ -2,7 +2,6 @@ use std::sync::mpsc::Sender;
 use crate::nodes::PortDescriptions;
 use crate::nodes::graph::PortId;
 use super::{Node, SAMPLERATE, NodeUi, drain_messages};
-use egui::Id;
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -33,26 +32,36 @@ impl MetronomeParameters {
 }
 
 impl NodeUi for MetronomeParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
-        let window = egui::Window::new("Metronome").id(Id::new(idx)).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(100.0);
-                    let bpm_res = ui.add_enabled(true,
-                        egui::Slider::new(&mut self.bpm, 0.1..=2000.0)
-                        .text("bpm")
-                        .logarithmic(true)
-                    );
-                    if bpm_res.changed() {
-                        let _ = self.sender.send(MetronomeMessage::Bpm(self.bpm));
-                    }
-                });
-            });
-        }).unwrap();
-        (PortDescriptions::with_ports(
+    fn duplicate(&self) -> Option<(Box<dyn Node>, Box<dyn NodeUi>)> {
+        let (node, params) = MetronomeNode::from_params(self.clone());
+        Some((Box::new(node), Box::new(params)))
+    }
+
+    fn title(&self) -> String {
+        "Metronome".to_string()
+    }
+
+    fn ports(&self) -> PortDescriptions {
+        PortDescriptions::with_ports(
             vec!["bpm"],
             vec!["pulse out"]
-        ), window.response)
+        )
+    }
+
+    fn draw(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(100.0);
+                let bpm_res = ui.add_enabled(true,
+                    egui::Slider::new(&mut self.bpm, 0.1..=2000.0)
+                    .text("bpm")
+                    .logarithmic(true)
+                );
+                if bpm_res.changed() {
+                    let _ = self.sender.send(MetronomeMessage::Bpm(self.bpm));
+                }
+            });
+        });
     }
 }
 
@@ -69,6 +78,16 @@ impl MetronomeNode {
             bpm: 120.0,
             sender: msg_sender,
         };
+        Self::build(params, msg_receiver)
+    }
+
+    pub fn from_params(mut params: MetronomeParameters) -> (Self, MetronomeParameters) {
+        let (msg_sender, msg_receiver) = channel();
+        params.sender = msg_sender;
+        Self::build(params, msg_receiver)
+    }
+
+    fn build(params: MetronomeParameters, msg_receiver: Receiver<MetronomeMessage>) -> (Self, MetronomeParameters) {
         let handler = params.clone();
         (Self {
             params,
