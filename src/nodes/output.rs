@@ -7,7 +7,6 @@ use crate::{graph, nodes::{PortDescriptions}};
 use super::{Node, NodeUi};
 
 
-use egui::Id;
 
 
 #[allow(dead_code)]
@@ -22,13 +21,18 @@ pub struct OutputParameters {
 }
 
 impl NodeUi for OutputParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
-        let window = egui::Window::new(self.name.clone()).id(Id::new(idx)).show(ctx, |_| { }).unwrap();
-        (PortDescriptions::with_ports(
+    fn title(&self) -> String {
+        self.name.clone()
+    }
+
+    fn ports(&self) -> PortDescriptions {
+        PortDescriptions::with_ports(
             vec!["audio input"],
             vec![]
-        ), window.response)
+        )
     }
+
+    fn draw(&mut self, _ui: &mut egui::Ui) {}
 }
 
 #[allow(dead_code)]

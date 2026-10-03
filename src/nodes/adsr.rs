@@ -2,7 +2,6 @@ use super::{Node, graph, NodeUi, PortDescriptions, SAMPLERATE, ratio2pole, drain
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
-use egui::Id;
 
 pub enum AdsrMessage {
     Gate(bool),
@@ -44,40 +43,49 @@ enum State {
 }
 
 impl NodeUi for AdsrParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
-        let window = egui::Window::new("Envelope").id(Id::new(idx)).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    // TODO handle a/d/s/r messages
-                    let a_res = ui.add_enabled(true, egui::DragValue::new(&mut self.a));
-                    let d_res = ui.add_enabled(true, egui::DragValue::new(&mut self.d));
-                    let s_res = ui.add_enabled(true, egui::DragValue::new(&mut self.s));
-                    let r_res = ui.add_enabled(true, egui::DragValue::new(&mut self.r));
-                    let gate_res = ui.add_enabled(true, egui::Button::new("on"));
-                    if gate_res.clicked() {
-                        self.gate = !self.gate; 
-                        let _ = self.sender.send(AdsrMessage::Gate(self.gate));
-                    }
-                    if a_res.changed() {
-                        let _ = self.sender.send(AdsrMessage::Attack(self.a));
-                    }
-                    if d_res.changed() {
-                        let _ = self.sender.send(AdsrMessage::Decay(self.d));
-                    }
-                    if s_res.changed() {
-                        let _ = self.sender.send(AdsrMessage::Sustain(self.s));
-                    }
-                    if r_res.changed() {
-                        let _ = self.sender.send(AdsrMessage::Release(self.r));
-                    }
-                });
-            });
-        }).unwrap();
+    fn duplicate(&self) -> Option<(Box<dyn Node>, Box<dyn NodeUi>)> {
+        let (node, params) = AdsrNode::from_params(self.clone());
+        Some((Box::new(node), Box::new(params)))
+    }
 
-        (PortDescriptions::with_ports(
+    fn title(&self) -> String {
+        "Envelope".to_string()
+    }
+
+    fn ports(&self) -> PortDescriptions {
+        PortDescriptions::with_ports(
             vec!["gate", "signal", "attack time", "decay time", "sustain level", "release time"],
             vec!["signal out"]
-        ), window.response)
+        )
+    }
+
+    fn draw(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                // TODO handle a/d/s/r messages
+                let a_res = ui.add_enabled(true, egui::DragValue::new(&mut self.a));
+                let d_res = ui.add_enabled(true, egui::DragValue::new(&mut self.d));
+                let s_res = ui.add_enabled(true, egui::DragValue::new(&mut self.s));
+                let r_res = ui.add_enabled(true, egui::DragValue::new(&mut self.r));
+                let gate_res = ui.add_enabled(true, egui::Button::new("on"));
+                if gate_res.clicked() {
+                    self.gate = !self.gate; 
+                    let _ = self.sender.send(AdsrMessage::Gate(self.gate));
+                }
+                if a_res.changed() {
+                    let _ = self.sender.send(AdsrMessage::Attack(self.a));
+                }
+                if d_res.changed() {
+                    let _ = self.sender.send(AdsrMessage::Decay(self.d));
+                }
+                if s_res.changed() {
+                    let _ = self.sender.send(AdsrMessage::Sustain(self.s));
+                }
+                if r_res.changed() {
+                    let _ = self.sender.send(AdsrMessage::Release(self.r));
+                }
+            });
+        });
     }
 }
 
@@ -103,6 +111,16 @@ impl AdsrNode {
             name: "ADSR".to_string(),
             sender: msg_sender,
         };
+        Self::build(params, msg_receiver)
+    }
+
+    pub fn from_params(mut params: AdsrParameters) -> (Self, AdsrParameters) {
+        let (msg_sender, msg_receiver) = channel();
+        params.sender = msg_sender;
+        Self::build(params, msg_receiver)
+    }
+
+    fn build(params: AdsrParameters, msg_receiver: Receiver<AdsrMessage>) -> (Self, AdsrParameters) {
         let handler = params.clone();
         (Self {
             params,

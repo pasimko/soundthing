@@ -26,6 +26,7 @@ pub struct AudioGraph {
 pub enum AudioGraphMessage {
     AddNode(Box<dyn Node>),
     AddEdge(Edge),
+    RemoveEdge(Edge),
 }
 
 impl AudioGraph {
@@ -97,6 +98,9 @@ impl AudioGraph {
                     self.incoming_edges[edge.to.0.0].push(edge); // look at this shit man this is
                                                                  // humiliating you gotta make this
                                                                  // indexable ASAP
+                },
+                AudioGraphMessage::RemoveEdge(edge) => {
+                    self.incoming_edges[edge.to.0.0].retain(|e| *e != edge);
                 }
             }
         }

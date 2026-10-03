@@ -1,7 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
 use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
-use egui::Id;
 use freeverb::Freeverb;
 
 use std::sync::mpsc::channel;
@@ -32,39 +31,49 @@ impl ReverbParameters {
 }
 
 impl NodeUi for ReverbParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
-        let window = egui::Window::new("Reverb").id(Id::new(idx)).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(100.0);
-                    let mix_res = ui.add_enabled(true,
-                        egui::Slider::new(&mut self.mix, 0..=100)
-                        .text("mix")
-                    );
-                    let room_res = ui.add_enabled(true,
-                        egui::Slider::new(&mut self.room_size, 0..=100)
-                        .text("room size")
-                    );
-                    let damping_res = ui.add_enabled(true,
-                        egui::Slider::new(&mut self.damping, 0..=100)
-                        .text("damping")
-                    );
-                    if mix_res.changed() {
-                        let _ = self.sender.send(ReverbMessage::Mix(self.mix));
-                    }
-                    if room_res.changed() {
-                        let _ = self.sender.send(ReverbMessage::RoomSize(self.room_size));
-                    }
-                    if damping_res.changed() {
-                        let _ = self.sender.send(ReverbMessage::Damping(self.damping));
-                    }
-                });
-            });
-        }).unwrap();
-        (PortDescriptions::with_ports(
+    fn duplicate(&self) -> Option<(Box<dyn Node>, Box<dyn NodeUi>)> {
+        let (node, params) = ReverbNode::from_params(self.clone());
+        Some((Box::new(node), Box::new(params)))
+    }
+
+    fn title(&self) -> String {
+        "Reverb".to_string()
+    }
+
+    fn ports(&self) -> PortDescriptions {
+        PortDescriptions::with_ports(
             vec!["signal in", "mix", "room size", "damping"],
             vec!["signal out"]
-        ), window.response)
+        )
+    }
+
+    fn draw(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(100.0);
+                let mix_res = ui.add_enabled(true,
+                    egui::Slider::new(&mut self.mix, 0..=100)
+                    .text("mix")
+                );
+                let room_res = ui.add_enabled(true,
+                    egui::Slider::new(&mut self.room_size, 0..=100)
+                    .text("room size")
+                );
+                let damping_res = ui.add_enabled(true,
+                    egui::Slider::new(&mut self.damping, 0..=100)
+                    .text("damping")
+                );
+                if mix_res.changed() {
+                    let _ = self.sender.send(ReverbMessage::Mix(self.mix));
+                }
+                if room_res.changed() {
+                    let _ = self.sender.send(ReverbMessage::RoomSize(self.room_size));
+                }
+                if damping_res.changed() {
+                    let _ = self.sender.send(ReverbMessage::Damping(self.damping));
+                }
+            });
+        });
     }
 }
 
@@ -85,6 +94,16 @@ impl ReverbNode {
             damping: 50,
             sender: msg_sender,
         };
+        Self::build(params, msg_receiver)
+    }
+
+    pub fn from_params(mut params: ReverbParameters) -> (Self, ReverbParameters) {
+        let (msg_sender, msg_receiver) = channel();
+        params.sender = msg_sender;
+        Self::build(params, msg_receiver)
+    }
+
+    fn build(params: ReverbParameters, msg_receiver: Receiver<ReverbMessage>) -> (Self, ReverbParameters) {
         let handler = params.clone();
         let mut freeverb = Freeverb::new(SAMPLERATE);
         freeverb.set_room_size(params.room_size as f64 / 100.0);

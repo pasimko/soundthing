@@ -3,7 +3,6 @@ use ringbuf::{traits::*,LocalRb, storage::Heap};
 use crate::nodes::PortDescriptions;
 use crate::nodes::graph::PortId;
 use super::{Node, SAMPLERATE, NodeUi, drain_messages};
-use egui::Id;
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -31,26 +30,36 @@ impl DelayParameters {
 }
 
 impl NodeUi for DelayParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
-        let window = egui::Window::new("Delay").id(Id::new(idx)).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(100.0);
-                    let delay_res = ui.add_enabled(true,
-                        egui::Slider::new(&mut self.delay, 1..=2000)
-                        .text("delay")
-                        .logarithmic(true)
-                    );
-                    if delay_res.changed() {
-                        let _ = self.sender.send(DelayMessage::Delay(self.delay));
-                    }
-                });
-            });
-        }).unwrap();
-        (PortDescriptions::with_ports(
+    fn duplicate(&self) -> Option<(Box<dyn Node>, Box<dyn NodeUi>)> {
+        let (node, params) = DelayNode::from_params(self.clone());
+        Some((Box::new(node), Box::new(params)))
+    }
+
+    fn title(&self) -> String {
+        "Delay".to_string()
+    }
+
+    fn ports(&self) -> PortDescriptions {
+        PortDescriptions::with_ports(
             vec!["delay"],
             vec!["signal out"]
-        ), window.response)
+        )
+    }
+
+    fn draw(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(100.0);
+                let delay_res = ui.add_enabled(true,
+                    egui::Slider::new(&mut self.delay, 1..=2000)
+                    .text("delay")
+                    .logarithmic(true)
+                );
+                if delay_res.changed() {
+                    let _ = self.sender.send(DelayMessage::Delay(self.delay));
+                }
+            });
+        });
     }
 }
 
@@ -68,6 +77,16 @@ impl DelayNode {
             delay: 500,
             sender: msg_sender,
         };
+        Self::build(params, msg_receiver)
+    }
+
+    pub fn from_params(mut params: DelayParameters) -> (Self, DelayParameters) {
+        let (msg_sender, msg_receiver) = channel();
+        params.sender = msg_sender;
+        Self::build(params, msg_receiver)
+    }
+
+    fn build(params: DelayParameters, msg_receiver: Receiver<DelayMessage>) -> (Self, DelayParameters) {
         let handler = params.clone();
         let bufsize = (SAMPLERATE as u32 / 1000 * params.delay) as usize;
         let mut buffer = LocalRb::<Heap<f32>>::new(bufsize);

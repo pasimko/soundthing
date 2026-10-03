@@ -1,7 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
 use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
-use egui::Id;
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -25,24 +24,34 @@ impl NoiseParameters {
 }
 
 impl NodeUi for NoiseParameters {
-    fn draw(&mut self, ctx: &egui::Context, idx: usize) -> (PortDescriptions, egui::Response) {
-        let window = egui::Window::new("Noise").id(Id::new(idx)).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    let vol_res = ui.add_enabled(true,
-                        egui::Slider::new(&mut self.target_vol, 0..=100)
-                        .text("volume")
-                        .logarithmic(true));
-                    if vol_res.changed() {
-                        let _ = self.sender.send(NoiseMessage::Volume(self.target_vol));
-                    }
-                });
+    fn duplicate(&self) -> Option<(Box<dyn Node>, Box<dyn NodeUi>)> {
+        let (node, params) = NoiseNode::from_params(self.clone());
+        Some((Box::new(node), Box::new(params)))
+    }
+
+    fn title(&self) -> String {
+        "Noise".to_string()
+    }
+
+    fn ports(&self) -> PortDescriptions {
+        PortDescriptions::with_ports(
+            vec!["volume"],
+            vec!["signal out"]
+        )
+    }
+
+    fn draw(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                let vol_res = ui.add_enabled(true,
+                    egui::Slider::new(&mut self.target_vol, 0..=100)
+                    .text("volume")
+                    .logarithmic(true));
+                if vol_res.changed() {
+                    let _ = self.sender.send(NoiseMessage::Volume(self.target_vol));
+                }
             });
-        }).unwrap();
-        (PortDescriptions::with_ports(
-                vec!["volume"],
-                vec!["signal out"]
-        ), window.response)
+        });
     }
 }
 
@@ -60,6 +69,16 @@ impl NoiseNode {
             target_vol: 100,
             sender: msg_sender,
         };
+        Self::build(params, msg_receiver)
+    }
+
+    pub fn from_params(mut params: NoiseParameters) -> (Self, NoiseParameters) {
+        let (msg_sender, msg_receiver) = channel();
+        params.sender = msg_sender;
+        Self::build(params, msg_receiver)
+    }
+
+    fn build(params: NoiseParameters, msg_receiver: Receiver<NoiseMessage>) -> (Self, NoiseParameters) {
         let handler = params.clone();
         (Self {
             params,
