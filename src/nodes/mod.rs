@@ -97,6 +97,7 @@ pub struct Port {
     /// Screen space, regardless of how far the window's layer is panned.
     pub pos: egui::Pos2,
     pub clicked: bool,
+    pub dragged: bool,
 }
 
 pub struct NodeFrame {
@@ -157,11 +158,10 @@ pub fn show_node(
 
     let port = |is_input: bool, port_idx: usize, info: &PortInfo, local_pos: egui::Pos2| {
         let pos = to_global * local_pos;
-        // Tooltips appear after egui's default hover delay (500ms).
         let hit = ui.interact(
             egui::Rect::from_pos(pos).expand(PORT_HIT_SLOP),
             response.id.with((is_input, port_idx)),
-            egui::Sense::click(),
+            egui::Sense::click_and_drag(),
         ).on_hover_ui(|ui| {
             ui.strong(info.name);
             ui.label(info.description);
@@ -169,7 +169,7 @@ pub fn show_node(
         });
         let radius = if hit.hovered() { PORT_HOVER_RADIUS } else { PORT_RADIUS };
         painter.circle_filled(local_pos, radius, egui::Color32::BLACK);
-        Port { pos, clicked: hit.clicked() }
+        Port { pos, clicked: hit.clicked(), dragged: hit.dragged() }
     };
     let row = |port_idx: usize| PORT_RADIUS * 2. + PORT_SPACING * port_idx as f32;
 

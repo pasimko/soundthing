@@ -13,8 +13,10 @@ phasor::PhaseBender, delay::DelayNode, reverb::ReverbNode};
 
 enum Mode {
     Normal,
-    SelectSink(graph::NodeId, graph::PortId),
-    SelectSource(graph::NodeId, graph::PortId),
+    ClickingSink(graph::NodeId, graph::PortId),
+    ClickingSource(graph::NodeId, graph::PortId),
+    EdgeKnife(Pos2),
+    Cloning(CloneDrag)
 }
 
 pub struct Canvas {
@@ -23,14 +25,14 @@ pub struct Canvas {
     // where each node's window goes; parallel to `node_parameters`
     placements: Vec<Option<Placement>>,
     incoming_edges: Vec<graph::Edge>,
-    current_mode: Mode,
+    current_mode: Mode, // TODO maybe make this match? Maybe Option<Mode>?
+                        // Clone drag, port drag, knife drag could all be different
+                        // mode options
     // offset applied to every node window, in screen points
     pan: Vec2,
-    // global-space start of a knife drag in progress
-    knife_start: Option<Pos2>,
-    // finished knife drag, applied next time edge positions are known
+    // since knife drags are finished outside of the edge drawing loop, this saves the cut for
+    // when edge positions are known
     pending_cut: Option<(Pos2, Pos2)>,
-    clone_drag: Option<CloneDrag>,
 }
 
 /// An alt-drag in progress. egui ties the drag to the original window, so instead the
@@ -40,7 +42,6 @@ struct CloneDrag {
     original: usize,
     clone: usize,
     original_pos: Pos2,
-    // pointer position relative to the window's top-left when the drag began
     grab_offset: Vec2,
 }
 
@@ -64,9 +65,7 @@ impl Canvas {
             incoming_edges: vec!(),
             current_mode: Mode::Normal,
             pan: Vec2::ZERO,
-            knife_start: None,
             pending_cut: None,
-            clone_drag: None,
         }
     }
 
@@ -92,7 +91,7 @@ impl Canvas {
         let to_global = TSTransform::from_translation(self.pan);
 
         // Handle clone by dragging
-        if let Some(drag) = self.clone_drag {
+        if let Mode::Cloning(drag) = self.current_mode {
             if ctx.input(|i| i.pointer.primary_down()) {
                 if let Some(pointer) = ctx.input(|i| i.pointer.latest_pos()) {
                     let pointer = to_global.inverse() * pointer;
@@ -102,7 +101,7 @@ impl Canvas {
             } else {
                 self.placements[drag.original] = None;
                 self.placements[drag.clone] = None;
-                self.clone_drag = None;
+                self.current_mode = Mode::Normal;
             }
         }
 
@@ -117,16 +116,17 @@ impl Canvas {
             if frame.response.drag_started() && ctx.input(|i| i.modifiers.alt) {
                 duplicate_requests.push((idx, frame.response.rect.min));
             }
-            if self.clone_drag.is_some_and(|drag| drag.clone == idx) {
+            // if matches!(self.current_mode, Mode::Cloning(_)) .is_some_and(|drag| drag.clone == idx) {
+            if let Mode::Cloning(dragged) = self.current_mode && dragged.clone == idx { 
                 ctx.move_to_top(frame.response.layer_id);
             }
 
             for (port_idx, port) in frame.inputs.iter().enumerate() {
-                if port.clicked {
+                if port.clicked || port.dragged {
                     let current_node = (graph::NodeId(idx), graph::PortId(port_idx));
                     match self.current_mode {
                         // Finish creating new edge
-                        Mode::SelectSink(node_id, port) => {
+                        Mode::ClickingSink(node_id, port) => {
                             let new_edge = graph::Edge { 
                                 from: (node_id, port), 
                                 to: current_node,
@@ -137,7 +137,7 @@ impl Canvas {
                         },
                         // Start creating new edge
                         Mode::Normal => {
-                            self.current_mode = Mode::SelectSource(current_node.0, current_node.1);
+                            self.current_mode = Mode::ClickingSource(current_node.0, current_node.1);
                         },
                         _ => {}
                     }
@@ -149,7 +149,7 @@ impl Canvas {
                     let current_node = (graph::NodeId(idx), graph::PortId(port_idx));
                     match self.current_mode {
                         // Finish creating new edge
-                        Mode::SelectSource(node_id, port) => {
+                        Mode::ClickingSource(node_id, port) => {
                             let new_edge = graph::Edge { 
                                 from: current_node,
                                 to: (node_id, port), 
@@ -160,7 +160,7 @@ impl Canvas {
                         },
                         // Start creating new edge
                         Mode::Normal => {
-                            self.current_mode = Mode::SelectSink(current_node.0, current_node.1);
+                            self.current_mode = Mode::ClickingSink(current_node.0, current_node.1);
                         },
                         _ => {}
                     }
@@ -173,7 +173,7 @@ impl Canvas {
             if let Some((node, params)) = self.node_parameters[idx].duplicate() {
                 let clone = self.add_node(node, params, Some(Placement::Initial(pos)));
                 if let Some(press) = ctx.input(|i| i.pointer.press_origin()) {
-                    self.clone_drag = Some(CloneDrag {
+                    self.current_mode = Mode::Cloning(CloneDrag {
                         original: idx,
                         clone,
                         original_pos: pos,
@@ -206,39 +206,42 @@ impl Canvas {
             }
         }
 
-        // Edges the knife would cut right now are drawn red
-        let knife = self.knife_start
-            .zip(ctx.input(|i| i.pointer.latest_pos()));
-
         // Draw edges
         let painter = ctx.layer_painter(egui::LayerId::background());
         for edge in self.incoming_edges.iter() {
             let (from, to) = edge_segment(edge);
-            let cut = knife.is_some_and(|(a, b)| segments_intersect(a, b, from, to));
-            let color = if cut { Color32::RED } else { Color32::GRAY };
-            painter.line(vec![from, to], Stroke::new(2.0, color));
+            let mut color = Color32::GRAY;
+            if let Mode::EdgeKnife(knife_start) = self.current_mode {
+                if let Some(knife_end) = ctx.input(|i| i.pointer.latest_pos()) {
+                    if segments_intersect(knife_start, knife_end, from, to) {
+                        color = Color32::RED;
+                    }
+                }
+            }
+            painter.line(vec![from, to], Stroke::new(2.0_f32, color));
         }
 
-        // Draw the edge currently being created in a special color
         let painter = ctx.layer_painter(egui::LayerId::new(egui::layers::Order::Foreground, Id::new("ephemeral interaction")));
-        if let Some((a, b)) = knife {
-            painter.line_segment([a, b], Stroke::new(2.0, Color32::RED));
-        }
         match self.current_mode {
-            Mode::SelectSource(node_id, port) => {
+            Mode::ClickingSource(node_id, port) => {
                 let sink_port_pos = frames[node_id.0].inputs[port.0].pos;
 
                 // draw the line
                 if let Some(mouse_pos) = ctx.input(|i| i.pointer.latest_pos()) {
-                    painter.line(vec![sink_port_pos, mouse_pos], Stroke::new(2.0, Color32::PURPLE));
+                    painter.line(vec![sink_port_pos, mouse_pos], Stroke::new(2.0_f32, Color32::PURPLE));
                 }
             }
-            Mode::SelectSink(node_id, port) => {
+            Mode::ClickingSink(node_id, port) => {
                 let source_port_pos = frames[node_id.0].outputs[port.0].pos;
 
                 // draw the line
                 if let Some(mouse_pos) = ctx.input(|i| i.pointer.latest_pos()) {
-                    painter.line(vec![source_port_pos, mouse_pos], Stroke::new(2.0, Color32::PURPLE));
+                    painter.line(vec![source_port_pos, mouse_pos], Stroke::new(2.0_f32, Color32::PURPLE));
+                }
+            }
+            Mode::EdgeKnife(knife_start) => {
+                if let Some(knife_end) = ctx.input(|i| i.pointer.latest_pos()) {
+                    painter.line_segment([knife_start, knife_end], Stroke::new(2.0_f32, Color32::RED));
                 }
             }
             _ => {}
@@ -272,18 +275,24 @@ impl eframe::App for Canvas {
             if bg_response.clicked() {
                 self.current_mode = Mode::Normal;
             }
-            // Dragging the background pans; shift-dragging draws a knife that cuts edges.
+            // Dragging the background pans, shift-dragging cuts edges
             if bg_response.drag_started() && ctx.input(|i| i.modifiers.shift) {
-                self.knife_start = ctx.input(|i| i.pointer.press_origin());
+                if let Some(pos) = ctx.input(|i| i.pointer.press_origin()) {
+                    self.current_mode = Mode::EdgeKnife(pos)
+                }
             }
-            if bg_response.dragged() && self.knife_start.is_none() {
+            if bg_response.dragged() && matches!(self.current_mode, Mode::Normal) {
                 self.pan += bg_response.drag_delta();
             }
             if bg_response.drag_stopped() {
-                if let Some(start) = self.knife_start.take() {
-                    if let Some(end) = ctx.input(|i| i.pointer.latest_pos()) {
-                        self.pending_cut = Some((start, end));
+                match self.current_mode {
+                    Mode::EdgeKnife(start) => {
+                        if let Some(end) = ctx.input(|i| i.pointer.latest_pos()) {
+                            self.pending_cut = Some((start, end));
+                            self.current_mode = Mode::Normal;
+                        }
                     }
+                    _ => {}
                 }
             }
 
@@ -312,7 +321,7 @@ impl eframe::App for Canvas {
                         ui.close();
                     }
                 });
-                ui.menu_button("add controller", |ui| {
+                ui.menu_button("controller", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
                     if ui.button("phasor").clicked() {
                         let (new_osc, new_phasor_handler) = PhaseBender::new();
@@ -352,7 +361,6 @@ impl eframe::App for Canvas {
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
             });
-
 
             self.render_nodes(ctx, ui);
         });

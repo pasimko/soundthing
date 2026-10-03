@@ -1,6 +1,6 @@
 [package]
 authors = ["The wasm-bindgen Developers"]
-edition = "2021"
+edition = "2024"
 name = "wasm-audio-worklet"
 publish = false
 version = "0.0.0"

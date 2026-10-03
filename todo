@@ -1,13 +1,11 @@
 TODO:
-  * Multiple outputs
+  * rhythm metronome
+  * metronome "sustain" node
+  * rst stuff for oscs
   * Fix phasor/osc integration
-    * phase bender shouldn't have a freq
+    * phase bender shouldn't have a freq?
     * probably pass a slope instead -- osc can mult by that
-  * Edge deletion
-    * shift-drag on background to select edges is best I think
-    * maybe check how hard it is to make a painted area clickable
   * Save/load patch
-  * Reverb!!
   * Fully implement a color scheme. I hate gray!!
   * Grid sequencer
     * send a number (or multiple? will need to plan out voices) 
@@ -26,13 +24,9 @@ TODO:
   * oscilliscope/wiretap
   * splitting an edge while moving a node would be SEXY
   * sample/wav import
-  * display ports only when relevant animations are complete
-  * pan around the canvas
   * interpolator
   * collisions on ports are kinda bad. need to get input layer
     settled
-  * fix adsr crashing when sus is 0 :(
-    * why no panic in console??
 
 How should I approach phasor?
 Have it built-in by default, with the option to plug in a phase node?
