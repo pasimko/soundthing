@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 console_log = "1"
 eframe = "0.33.0" # TODO remove default fonts
 egui = "0.33.0"
+freeverb = "0.2.0"
 js-sys = "0.3.77"
 log = "0.4.27"
 ringbuf = "0.4.8"

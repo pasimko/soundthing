@@ -8,7 +8,7 @@ use egui::{
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
 math::MathNode, PortDescriptions, metronome::MetronomeNode, sequencer::SequencerNode, noise::NoiseNode,
-phasor::PhaseBender, delay::DelayNode};
+phasor::PhaseBender, delay::DelayNode, reverb::ReverbNode};
 
 enum Mode {
     Normal,
@@ -18,7 +18,7 @@ enum Mode {
 
 pub struct Canvas {
     graph_handler: Sender<AudioGraphMessage>,
-    node_parameters: Vec<NodeParameter>,
+    node_parameters: Vec<Box<dyn NodeUi>>,
     incoming_edges: Vec<graph::Edge>,
     current_mode: Mode,
     scene_rect: egui::Rect,
@@ -45,7 +45,7 @@ impl Canvas {
         let _ = graph_handler.send(AudioGraphMessage::AddNode(Box::new(output)));
         Self {
             graph_handler,
-            node_parameters: vec![NodeParameter::Output(output_handler)],
+            node_parameters: vec![Box::new(output_handler)],
             incoming_edges: vec!(),
             current_mode: Mode::Normal,
             scene_rect: egui::Rect::ZERO,
@@ -56,22 +56,11 @@ impl Canvas {
         let mut port_positions = Vec::new();
         for (idx, p) in self.node_parameters.iter_mut().enumerate() {
             port_positions.push(PortPositions::new());
-            let mut port_info : Option<(PortDescriptions, egui::Response)> = None;
-            match p {
-                NodeParameter::Osc(p) => port_info = Some(p.draw(ctx, idx)),
-                NodeParameter::Phasor(p) => port_info = Some(p.draw(ctx, idx)),
-                NodeParameter::Adsr(p) => port_info = Some(p.draw(ctx, idx)),
-                NodeParameter::Math(p) => port_info = Some(p.draw(ctx, idx)),
-                NodeParameter::Output(p) => port_info = Some(p.draw(ctx, idx)),
-                NodeParameter::Metronome(p) => port_info = Some(p.draw(ctx, idx)),
-                NodeParameter::Sequencer(p) => port_info = Some(p.draw(ctx, idx)),
-                NodeParameter::Delay(p) => port_info = Some(p.draw(ctx, idx)),
-                NodeParameter::Noise(p) => port_info = Some(p.draw(ctx, idx)),
-                _ => {}
-            }
+            // let mut port_info : Option<(PortDescriptions, egui::Response)> = None;
+            let port_info = p.draw(ctx, idx);
 
             // Draw ports
-            let port_info = port_info.unwrap();
+            // let port_info = port_info.unwrap();
             let port_descriptions = port_info.0;
             let node_window_response = port_info.1;
             let painter = ctx.layer_painter(node_window_response.layer_id);
@@ -219,13 +208,13 @@ impl eframe::App for Canvas {
                     ui.set_width(100.0); // To make sure we wrap long text
                     if ui.button("oscillator").clicked() {
                         let (new_osc, new_osc_handler) = OscNode::new();
-                        self.node_parameters.push(NodeParameter::Osc(new_osc_handler));
+                        self.node_parameters.push(Box::new(new_osc_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }
                     if ui.button("noise").clicked() {
                         let (new_noise, new_noise_handler) = NoiseNode::new();
-                        self.node_parameters.push(NodeParameter::Noise(new_noise_handler));
+                        self.node_parameters.push(Box::new(new_noise_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_noise)));
                         ui.close();
                     }
@@ -235,7 +224,7 @@ impl eframe::App for Canvas {
                     ui.set_width(100.0); // To make sure we wrap long text
                     if ui.button("math").clicked() {
                         let (new_node, node_handler) = MathNode::new();
-                        self.node_parameters.push(NodeParameter::Math(node_handler));
+                        self.node_parameters.push(Box::new(node_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_node)));
                         ui.close();
                     }
@@ -244,25 +233,25 @@ impl eframe::App for Canvas {
                     ui.set_width(100.0); // To make sure we wrap long text
                     if ui.button("phasor").clicked() {
                         let (new_osc, new_phasor_handler) = PhaseBender::new();
-                        self.node_parameters.push(NodeParameter::Phasor(new_phasor_handler));
+                        self.node_parameters.push(Box::new(new_phasor_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }
                     if ui.button("metronome").clicked() {
                         let (new_osc, new_metronome_handler) = MetronomeNode::new();
-                        self.node_parameters.push(NodeParameter::Metronome(new_metronome_handler));
+                        self.node_parameters.push(Box::new(new_metronome_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }
                     if ui.button("envelope").clicked() {
                         let (new_osc, new_phasor_handler) = AdsrNode::new();
-                        self.node_parameters.push(NodeParameter::Adsr(new_phasor_handler));
+                        self.node_parameters.push(Box::new(new_phasor_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }
                     if ui.button("sequencer").clicked() {
                         let (new_osc, new_sequencer_handler) = SequencerNode::new();
-                        self.node_parameters.push(NodeParameter::Sequencer(new_sequencer_handler));
+                        self.node_parameters.push(Box::new(new_sequencer_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_osc)));
                         ui.close();
                     }
@@ -270,8 +259,14 @@ impl eframe::App for Canvas {
                 ui.menu_button("effects", |ui| {
                     if ui.button("delay").clicked() {
                         let (new_delay, new_delay_handler) = DelayNode::new();
-                        self.node_parameters.push(NodeParameter::Delay(new_delay_handler));
+                        self.node_parameters.push(Box::new(new_delay_handler));
                         let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_delay)));
+                        ui.close();
+                    }
+                    if ui.button("reverb").clicked() {
+                        let (new_reverb, new_reverb_handler) = ReverbNode::new();
+                        self.node_parameters.push(Box::new(new_reverb_handler));
+                        let _ = self.graph_handler.send(AudioGraphMessage::AddNode(Box::new(new_reverb)));
                         ui.close();
                     }
                 });

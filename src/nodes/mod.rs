@@ -2,12 +2,14 @@ use crate::nodes::{
     adsr::{AdsrParameters},
     delay::*,
     oscillators::*,
+    // harmonics::*,
     output::*,
     phasor::*,
     graph::{PortId},
     math::*,
     metronome::*,
     noise::*,
+    reverb::*,
     sequencer::*,
 };
 
@@ -20,7 +22,9 @@ pub mod noise;
 pub mod oscillators;
 pub mod output;
 pub mod phasor;
+pub mod reverb;
 pub mod sequencer;
+// pub mod harmonics;
 
 pub mod graph;
 
@@ -44,6 +48,7 @@ pub enum NodeParameter {
     Osc(OscParameters),
     Output(OutputParameters),
     Phasor(PhasorParameters),
+    Reverb(ReverbParameters),
     Sequencer(SequencerParameters),
     Noise(NoiseParameters),
 }
@@ -54,13 +59,16 @@ pub enum NodeParameter {
 pub enum Message {
     Attack(f32),
     Bpm(f32),
+    Damping(u8),
     Decay(f32),
     Delay(u32),
     Frequency(f32),
     Gate(bool),
+    Mix(u8),
     Operation(math::Operation),
     Phase(f32),
     Release(f32),
+    RoomSize(u8),
     Sequence(Vec<f32>),
     SetA(f32),
     SetB(f32),

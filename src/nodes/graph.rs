@@ -38,6 +38,8 @@ impl AudioGraph {
             message_receiver,
         }
     }
+
+    // Forward pass through the audio graph
     pub fn process(&mut self, output: &mut [f32]) {
         self.process_messages();
         let mut buffers = vec![];
