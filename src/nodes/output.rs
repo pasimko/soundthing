@@ -52,7 +52,8 @@ impl OutputNode {
 }
 
 impl Node for OutputNode {
-    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], outputs: &mut [Vec<f32>]) {
+        let output = &mut outputs[0];
         output.iter_mut().for_each( |x| *x = 0.); // TODO is this the best way to zero a chunk?
         for (_, buffer) in inputs {
             for (a, b) in zip(output.iter_mut(), buffer.iter()) {

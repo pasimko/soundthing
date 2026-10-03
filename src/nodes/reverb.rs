@@ -128,7 +128,8 @@ impl ReverbNode {
 }
 
 impl Node for ReverbNode {
-    fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(PortId, &[f32])], outputs: &mut [Vec<f32>]) {
+        let output = &mut outputs[0];
         drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut signal_buf = None;
@@ -196,8 +197,8 @@ mod tests {
     #[wasm_bindgen_test]
     fn test_reverb_passes_silence() {
         let (mut reverb, _) = ReverbNode::new();
-        let mut output = [0f32; 128];
-        reverb.process(&[], &mut output);
-        assert_eq!(output[0], 0.);
+        let mut outputs = [vec![0f32; 128]];
+        reverb.process(&[], &mut outputs);
+        assert_eq!(outputs[0][0], 0.);
     }
 }

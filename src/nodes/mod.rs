@@ -35,7 +35,12 @@ pub mod graph;
 pub const SAMPLERATE: usize = 48_000;
 
 pub trait Node {
-    fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]);
+    /// How many output ports the node has; `process` is given one buffer for each.
+    fn output_count(&self) -> usize {
+        1
+    }
+
+    fn process(&mut self, inputs: &[(PortId, &[f32])], outputs: &mut [Vec<f32>]);
 }
 
 /// Used by UI to display the parameters of a node

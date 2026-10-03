@@ -128,7 +128,8 @@ impl MathNode {
 }
 
 impl Node for MathNode {
-    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], outputs: &mut [Vec<f32>]) {
+        let output = &mut outputs[0];
         drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut a_buf = None;
@@ -175,8 +176,8 @@ mod tests {
     #[wasm_bindgen_test]
     fn test_sine() {
         let (mut sine_osc, _) = MathNode::new();
-        let mut output = [0f32; 128];
-        sine_osc.process(&[], &mut output);
-        assert_eq!(output[0], 0.); // TODO add more cases lol
+        let mut outputs = [vec![0f32; 128]];
+        sine_osc.process(&[], &mut outputs);
+        assert_eq!(outputs[0][0], 0.); // TODO add more cases lol
     }
 }

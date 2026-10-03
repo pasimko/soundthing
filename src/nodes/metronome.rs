@@ -13,6 +13,11 @@ pub enum Operation {
     Exp,
 }
 
+// Length of each output's note, in beats (quarter notes), in output port order.
+const NOTE_BEATS: [f64; 5] = [4.0, 2.0, 1.0, 0.5, 0.25];
+// The longest note; the beat counter wraps here so all outputs stay aligned.
+const BAR_BEATS: f64 = 4.0;
+
 pub enum MetronomeMessage {
     Bpm(f32),
 }
@@ -44,10 +49,14 @@ impl NodeUi for MetronomeParameters {
     fn ports(&self) -> PortDescriptions {
         PortDescriptions::with_ports(
             vec![
-                PortInfo::input("bpm", "Tempo in beats per minute. Overrides the slider."),
+                PortInfo::input("bpm", "Tempo in beats (quarter notes) per minute. Overrides the slider."),
             ],
             vec![
-                PortInfo::output("pulse out", "1 for a single sample on each beat, otherwise 0."),
+                PortInfo::output("whole", "1 for a single sample every four beats, otherwise 0."),
+                PortInfo::output("half", "1 for a single sample every two beats, otherwise 0."),
+                PortInfo::output("quarter", "1 for a single sample on every beat, otherwise 0."),
+                PortInfo::output("eighth", "1 for a single sample twice per beat, otherwise 0."),
+                PortInfo::output("sixteenth", "1 for a single sample four times per beat, otherwise 0."),
             ]
         )
     }
@@ -71,7 +80,8 @@ impl NodeUi for MetronomeParameters {
 
 pub struct MetronomeNode {
     params: MetronomeParameters,
-    phase: f32,
+    // position within the bar, in beats; f64 so the tempo doesn't drift
+    beats: f64,
     msg_receiver: Receiver<MetronomeMessage>,
 }
 
@@ -95,14 +105,18 @@ impl MetronomeNode {
         let handler = params.clone();
         (Self {
             params,
-            phase: 0.0,
+            beats: 0.0,
             msg_receiver,
         }, handler)
     }
 }
 
 impl Node for MetronomeNode {
-    fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]) {
+    fn output_count(&self) -> usize {
+        NOTE_BEATS.len()
+    }
+
+    fn process(&mut self, inputs: &[(PortId, &[f32])], outputs: &mut [Vec<f32>]) {
         drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut bpm_buf = None;
@@ -110,22 +124,20 @@ impl Node for MetronomeNode {
             // FRAGILE: These have to match the order the ports are declared in the UI
             if port.0 == 0 { bpm_buf = Some(buffer) }
         }
-        for i in 0..output.len() {
+        for i in 0..outputs[0].len() {
             let bpm = bpm_buf
                 .map(|b| b[i])
                 .unwrap_or(self.params.bpm);
 
-            self.phase += bpm / SAMPLERATE as f32 / 60.;
+            // `max` keeps the clock from running backwards (and turns NaN into a stopped clock)
+            let before = self.beats;
+            let after = before + bpm.max(0.) as f64 / 60. / SAMPLERATE as f64;
 
-            // this is wasm we branch in this muthafucka
-            // better take yo sensitive ass back to x86
-            if self.phase >= 1.0 {
-                output[i] = 1.0;
-                self.phase = self.phase.rem_euclid(1.);
+            // A note's pulse fires on the sample where the clock crosses a multiple of its length
+            for (output, note) in outputs.iter_mut().zip(NOTE_BEATS) {
+                output[i] = if (after / note).floor() > (before / note).floor() { 1.0 } else { 0.0 };
             }
-            else {
-                output[i] = 0.0;
-            }
+            self.beats = after.rem_euclid(BAR_BEATS);
         }
     }
 }

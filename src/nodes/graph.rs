@@ -43,10 +43,10 @@ impl AudioGraph {
     // Forward pass through the audio graph
     pub fn process(&mut self, output: &mut [f32]) {
         self.process_messages();
-        let mut buffers = vec![];
-        for _ in 0..self.nodes.len() {
-            buffers.push(vec![0.; output.len()]);
-        }
+        // buffers[node][output port] is one block of samples
+        let mut buffers: Vec<Vec<Vec<f32>>> = self.nodes.iter()
+            .map(|node| vec![vec![0.; output.len()]; node.output_count()])
+            .collect();
 
         // topologically sort nodes
         let mut visited : Vec<bool> = vec![false; self.nodes.len()];
@@ -61,16 +61,16 @@ impl AudioGraph {
                 let source_idx = edge.from.0;
                 let source_port = edge.from.1;
                 let sink_port = edge.to.1;
-                sources.push((sink_port, buffers[source_idx.0].as_slice()));
+                sources.push((sink_port, buffers[source_idx.0][source_port.0].as_slice()));
             }
-            let mut tmp_output = buffers[node_idx].clone();
-            self.nodes[node_idx].process(sources.as_slice(), tmp_output.as_mut_slice());
-            zip(buffers[node_idx].iter_mut(), tmp_output.iter())
-                .for_each(|(o, i)| *o = *i);
+            let mut node_outputs = buffers[node_idx].clone();
+            self.nodes[node_idx].process(sources.as_slice(), node_outputs.as_mut_slice());
+            buffers[node_idx] = node_outputs;
         }
 
+        // Node 0 is the output node
         if !buffers.is_empty() {
-            zip(buffers[0].iter(), output.iter_mut())
+            zip(buffers[0][0].iter(), output.iter_mut())
                 .for_each(|(i, o)| *o = *i);
         }
     }

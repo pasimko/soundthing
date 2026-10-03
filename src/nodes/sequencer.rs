@@ -95,7 +95,8 @@ impl SequencerNode {
 }
 
 impl Node for SequencerNode {
-    fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(PortId, &[f32])], outputs: &mut [Vec<f32>]) {
+        let output = &mut outputs[0];
         drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
 
         let mut idx_buf: Option<Vec<usize>> = None;

@@ -202,7 +202,8 @@ impl AdsrNode {
 }
 
 impl Node for AdsrNode {
-    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
+    fn process(&mut self, inputs: &[(graph::PortId, &[f32])], outputs: &mut [Vec<f32>]) {
+        let output = &mut outputs[0];
         drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut signal_buf = None;
