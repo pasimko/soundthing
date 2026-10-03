@@ -73,7 +73,6 @@ impl Canvas {
     /// Returns the new node's index.
     fn add_node(&mut self, node: Box<dyn Node>, params: Box<dyn NodeUi>, placement: Option<Placement>) -> usize {
         // Menu-spawned nodes land in the visible area, however far the canvas is panned.
-        // TODO check if there's a more natural way to do this
         let placement = placement.or_else(|| {
             let cascade = (self.node_parameters.len() % 10) as f32 * 24.;
             Some(Placement::Initial(pos2(32. + cascade, 96. + cascade) - self.pan))
@@ -88,7 +87,8 @@ impl Canvas {
     /// Render nodes, edges, and ports. Also handles clicks/drags on ports (and background?)
     pub fn render_nodes(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         let mut frames: Vec<NodeFrame> = Vec::new();
-        let mut duplicate_requests = Vec::new();
+        let mut duplicate_requests = Vec::new(); // Needed because we can't modify the nodes vec while
+                                                 // enumerating it
         let to_global = TSTransform::from_translation(self.pan);
 
         // Handle clone by dragging

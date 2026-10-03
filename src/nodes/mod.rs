@@ -147,9 +147,8 @@ pub fn show_node(
     let to_global = ctx
         .layer_transform_to_global(response.layer_id)
         .unwrap_or(egui::emath::TSTransform::IDENTITY);
-    let painter = ctx
-        .layer_painter(response.layer_id)
-        .with_clip_rect(unbounded_rect());
+    let mut painter = ctx.layer_painter(response.layer_id);
+    painter.set_clip_rect(unbounded_rect());
 
     let port = |side: &str, port_idx: usize, local_pos: egui::Pos2| {
         let pos = to_global * local_pos;
