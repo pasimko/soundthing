@@ -2,24 +2,30 @@ use std::sync::mpsc::Sender;
 use ringbuf::{traits::*,LocalRb, storage::Heap};
 use crate::nodes::PortDescriptions;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, Message, NodeUi};
+use super::{Node, SAMPLERATE, NodeUi, drain_messages};
 use egui::Id;
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
+pub enum DelayMessage {
+    Delay(u32),
+}
+
 #[derive(Debug, Clone)]
 pub struct DelayParameters {
     pub delay: u32,
-    pub sender: Sender<Message>,
+    pub sender: Sender<DelayMessage>,
 }
 
 impl DelayParameters {
-    fn handle_message(&mut self, msg: Message) {
-        if let Message::Delay(val) = msg {
-            self.delay = val;
-            // this is bothering me now...
-            // I'd like to be able to change the node itself in here
+    fn handle_message(&mut self, msg: DelayMessage) {
+        match msg {
+            DelayMessage::Delay(val) => {
+                self.delay = val;
+                // this is bothering me now...
+                // I'd like to be able to change the node itself in here
+            }
         }
     }
 }
@@ -36,7 +42,7 @@ impl NodeUi for DelayParameters {
                         .logarithmic(true)
                     );
                     if delay_res.changed() {
-                        let _ = self.sender.send(Message::Delay(self.delay));
+                        let _ = self.sender.send(DelayMessage::Delay(self.delay));
                     }
                 });
             });
@@ -51,7 +57,7 @@ impl NodeUi for DelayParameters {
 pub struct DelayNode {
     params: DelayParameters,
     phase: f32,
-    msg_receiver: Receiver<Message>,
+    msg_receiver: Receiver<DelayMessage>,
     buffer: LocalRb<Heap<f32>>,
 }
 
@@ -77,9 +83,7 @@ impl DelayNode {
 
 impl Node for DelayNode {
     fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]) {
-        if let Ok(msg) = self.msg_receiver.try_recv() {
-            self.params.handle_message(msg);
-        };
+        drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // Write to ringbuf
         for (port, buffer) in inputs {
             // FRAGILE: These have to match the order the ports are declared in the UI

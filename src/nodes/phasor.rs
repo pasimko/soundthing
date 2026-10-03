@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 
-use super::{Node, SAMPLERATE, Message, NodeUi, PortDescriptions};
+use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
@@ -21,21 +21,26 @@ use egui::{
     pos2,
 };
 
+pub enum PhasorMessage {
+    SetA(f32),
+    SetB(f32),
+    Frequency(f32),
+}
+
 #[derive(Debug, Clone)]
 pub struct PhasorParameters {
     pub freq: f32,
     pub point: (f32, f32),
-    pub sender: Sender<Message>,
+    pub sender: Sender<PhasorMessage>,
     pub name: String,
 }
 
 impl PhasorParameters {
-    fn handle_message(&mut self, msg: Message) {
+    fn handle_message(&mut self, msg: PhasorMessage) {
         match msg {
-            Message::SetA(val) => self.point.0 = val,
-            Message::SetB(val) => self.point.1 = val,
-            Message::Frequency(val) => self.freq = val,
-            _ => (),
+            PhasorMessage::SetA(val) => self.point.0 = val,
+            PhasorMessage::SetB(val) => self.point.1 = val,
+            PhasorMessage::Frequency(val) => self.freq = val,
         }
     }
 }
@@ -60,8 +65,8 @@ impl NodeUi for PhasorParameters {
                         let canvas_pos = from_screen * pointer_pos;
                         self.point.0 = canvas_pos[0];
                         self.point.1 = canvas_pos[1];
-                        self.sender.send(Message::SetA(self.point.0)).unwrap();
-                        self.sender.send(Message::SetB(self.point.1)).unwrap();
+                        self.sender.send(PhasorMessage::SetA(self.point.0)).unwrap();
+                        self.sender.send(PhasorMessage::SetB(self.point.1)).unwrap();
                         response.mark_changed();
                     }
 
@@ -77,7 +82,7 @@ impl NodeUi for PhasorParameters {
                     painter.extend(shapes);
                     let freq_res = ui.add(egui::Slider::new(&mut self.freq, 0.001..=2000.0).text("frequency").logarithmic(true));
                     if freq_res.changed() {
-                        self.sender.send(Message::Frequency(self.freq)).unwrap();
+                        self.sender.send(PhasorMessage::Frequency(self.freq)).unwrap();
                     }
                 });
             });
@@ -93,7 +98,7 @@ pub struct PhaseBender {
     params: PhasorParameters,
     phase: f32,
     freq: f32,
-    msg_receiver: Receiver<Message>,
+    msg_receiver: Receiver<PhasorMessage>,
     pub point: (f32, f32),
 }
 
@@ -121,9 +126,7 @@ impl PhaseBender {
 
 impl Node for PhaseBender {
     fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
-        if let Ok(msg) = self.msg_receiver.try_recv() {
-            self.params.handle_message(msg);
-        };
+        drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut x_buf = None;
         let mut y_buf = None;

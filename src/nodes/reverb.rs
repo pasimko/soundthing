@@ -1,27 +1,32 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, Message, NodeUi, PortDescriptions};
+use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 use egui::Id;
 use freeverb::Freeverb;
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
+pub enum ReverbMessage {
+    Mix(u8),
+    RoomSize(u8),
+    Damping(u8),
+}
+
 #[derive(Debug, Clone)]
 pub struct ReverbParameters {
     pub mix: u8,
     pub room_size: u8,
     pub damping: u8,
-    pub sender: Sender<Message>,
+    pub sender: Sender<ReverbMessage>,
 }
 
 impl ReverbParameters {
-    fn handle_message(&mut self, msg: Message) {
+    fn handle_message(&mut self, msg: ReverbMessage) {
         match msg {
-            Message::Mix(val) => self.mix = val,
-            Message::RoomSize(val) => self.room_size = val,
-            Message::Damping(val) => self.damping = val,
-            _ => (),
+            ReverbMessage::Mix(val) => self.mix = val,
+            ReverbMessage::RoomSize(val) => self.room_size = val,
+            ReverbMessage::Damping(val) => self.damping = val,
         }
     }
 }
@@ -45,13 +50,13 @@ impl NodeUi for ReverbParameters {
                         .text("damping")
                     );
                     if mix_res.changed() {
-                        let _ = self.sender.send(Message::Mix(self.mix));
+                        let _ = self.sender.send(ReverbMessage::Mix(self.mix));
                     }
                     if room_res.changed() {
-                        let _ = self.sender.send(Message::RoomSize(self.room_size));
+                        let _ = self.sender.send(ReverbMessage::RoomSize(self.room_size));
                     }
                     if damping_res.changed() {
-                        let _ = self.sender.send(Message::Damping(self.damping));
+                        let _ = self.sender.send(ReverbMessage::Damping(self.damping));
                     }
                 });
             });
@@ -65,7 +70,7 @@ impl NodeUi for ReverbParameters {
 
 pub struct ReverbNode {
     params: ReverbParameters,
-    msg_receiver: Receiver<Message>,
+    msg_receiver: Receiver<ReverbMessage>,
     freeverb: Freeverb,
     last_room_size: u8,
     last_damping: u8,
@@ -98,9 +103,7 @@ impl ReverbNode {
 
 impl Node for ReverbNode {
     fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]) {
-        if let Ok(msg) = self.msg_receiver.try_recv() {
-            self.params.handle_message(msg);
-        };
+        drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut signal_buf = None;
         let mut mix_buf = None;

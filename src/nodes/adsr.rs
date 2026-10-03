@@ -1,8 +1,16 @@
-use super::{Node, Message, graph, NodeUi, PortDescriptions, SAMPLERATE, ratio2pole};
+use super::{Node, graph, NodeUi, PortDescriptions, SAMPLERATE, ratio2pole, drain_messages};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
 use egui::Id;
+
+pub enum AdsrMessage {
+    Gate(bool),
+    Attack(f32),
+    Decay(f32),
+    Sustain(f32),
+    Release(f32),
+}
 
 #[derive(Debug, Clone)]
 pub struct AdsrParameters {
@@ -12,7 +20,19 @@ pub struct AdsrParameters {
     pub s: f32, // amplitude
     pub r: f32, // time
     pub name: String,
-    pub sender: Sender<Message>,
+    pub sender: Sender<AdsrMessage>,
+}
+
+impl AdsrParameters {
+    fn handle_message(&mut self, msg: AdsrMessage) {
+        match msg {
+            AdsrMessage::Gate(val) => self.gate = val,
+            AdsrMessage::Attack(val) => self.a = val,
+            AdsrMessage::Decay(val) => self.d = val,
+            AdsrMessage::Sustain(val) => self.s = val,
+            AdsrMessage::Release(val) => self.r = val,
+        }
+    }
 }
 
 enum State {
@@ -36,19 +56,19 @@ impl NodeUi for AdsrParameters {
                     let gate_res = ui.add_enabled(true, egui::Button::new("on"));
                     if gate_res.clicked() {
                         self.gate = !self.gate; 
-                        let _ = self.sender.send(Message::Gate(self.gate));
+                        let _ = self.sender.send(AdsrMessage::Gate(self.gate));
                     }
                     if a_res.changed() {
-                        let _ = self.sender.send(Message::Attack(self.a));
+                        let _ = self.sender.send(AdsrMessage::Attack(self.a));
                     }
                     if d_res.changed() {
-                        let _ = self.sender.send(Message::Decay(self.d));
+                        let _ = self.sender.send(AdsrMessage::Decay(self.d));
                     }
                     if s_res.changed() {
-                        let _ = self.sender.send(Message::Sustain(self.s));
+                        let _ = self.sender.send(AdsrMessage::Sustain(self.s));
                     }
                     if r_res.changed() {
-                        let _ = self.sender.send(Message::Release(self.r));
+                        let _ = self.sender.send(AdsrMessage::Release(self.r));
                     }
                 });
             });
@@ -67,7 +87,7 @@ pub struct AdsrNode {
     tick: u32, // how many samples we've been in the current state
     last_gate: f32, // what value last triggered an attack?
     current_out: f32, // level we are currently at
-    msg_receiver: Receiver<Message>,
+    msg_receiver: Receiver<AdsrMessage>,
     inputs: Vec<Box<dyn Node>>,
 }
 
@@ -98,17 +118,7 @@ impl AdsrNode {
 
 impl Node for AdsrNode {
     fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
-        let msg = self.msg_receiver.try_recv();
-        if let Ok(msg) = msg {
-            match msg {
-                Message::Gate(val) => { self.params.gate = val },
-                Message::Attack(val) => { self.params.a = val },
-                Message::Decay(val) => { self.params.d = val },
-                Message::Sustain(val) => { self.params.s = val },
-                Message::Release(val) => { self.params.r = val },
-                _ => {}
-            }
-        };
+        drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut gate_buf = None;
         let mut signal_buf = None;

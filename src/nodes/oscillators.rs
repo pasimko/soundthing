@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
 use egui::Id;
 
-use super::{Node, SAMPLERATE, Message, NodeUi, PortDescriptions};
+use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 use std::f32::consts::TAU;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -16,22 +16,27 @@ pub enum Waveform {
     Saw,
 }
 
+pub enum OscMessage {
+    Frequency(f32),
+    Volume(u8),
+    Waveform(Waveform),
+}
+
 #[derive(Debug, Clone)]
 pub struct OscParameters {
     pub freq: f32,
     pub target_vol: u8,
     pub last_vol: f32,
-    pub sender: Sender<Message>,
+    pub sender: Sender<OscMessage>,
     pub waveform: Waveform,
 }
 
 impl OscParameters {
-    fn handle_message(&mut self, msg: Message) {
+    fn handle_message(&mut self, msg: OscMessage) {
         match msg {
-            Message::Frequency(val) => self.freq = val,
-            Message::Volume(val) => self.target_vol = val,
-            Message::Waveform(val) => self.waveform = val,
-            _ => (),
+            OscMessage::Frequency(val) => self.freq = val,
+            OscMessage::Volume(val) => self.target_vol = val,
+            OscMessage::Waveform(val) => self.waveform = val,
         }
     }
 }
@@ -55,24 +60,24 @@ impl NodeUi for OscParameters {
                         .text("volume")
                         .logarithmic(true));
                     if freq_res.changed() {
-                        let _ = self.sender.send(Message::Frequency(self.freq));
+                        let _ = self.sender.send(OscMessage::Frequency(self.freq));
                     }
                     if vol_res.changed() {
-                        let _ = self.sender.send(Message::Volume(self.target_vol));
+                        let _ = self.sender.send(OscMessage::Volume(self.target_vol));
                     }
                     let waveform_res = ui.menu_button("waveform", |ui| {
                         ui.set_width(100.0); // To make sure we wrap long text
                         if ui.button("Sine").clicked() {
                             self.waveform = Waveform::Sine;
-                            let _ = self.sender.send(Message::Waveform(Waveform::Sine));
+                            let _ = self.sender.send(OscMessage::Waveform(Waveform::Sine));
                         }
                         if ui.button("Square").clicked() {
                             self.waveform = Waveform::Square;
-                            let _ = self.sender.send(Message::Waveform(Waveform::Square));
+                            let _ = self.sender.send(OscMessage::Waveform(Waveform::Square));
                         }
                         if ui.button("Saw").clicked() {
                             self.waveform = Waveform::Saw;
-                            let _ = self.sender.send(Message::Waveform(Waveform::Saw));
+                            let _ = self.sender.send(OscMessage::Waveform(Waveform::Saw));
                         }
                     }).response;
                 });
@@ -90,7 +95,7 @@ pub struct OscNode {
     params: OscParameters,
     phase: f32,
     vol_tick: u32,
-    msg_receiver: Receiver<Message>,
+    msg_receiver: Receiver<OscMessage>,
 }
 
 impl OscNode {
@@ -115,9 +120,7 @@ impl OscNode {
 
 impl Node for OscNode {
     fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]) {
-        if let Ok(msg) = self.msg_receiver.try_recv() {
-            self.params.handle_message(msg);
-        };
+        drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut freq_buf = None;
         let mut vol_buf = None;

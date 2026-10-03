@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::PortDescriptions;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, Message, NodeUi};
+use super::{Node, SAMPLERATE, NodeUi, drain_messages};
 use egui::Id;
 
 use std::sync::mpsc::channel;
@@ -14,15 +14,21 @@ pub enum Operation {
     Exp,
 }
 
+pub enum MetronomeMessage {
+    Bpm(f32),
+}
+
 #[derive(Debug, Clone)]
 pub struct MetronomeParameters {
     pub bpm: f32,
-    pub sender: Sender<Message>,
+    pub sender: Sender<MetronomeMessage>,
 }
 
 impl MetronomeParameters {
-    fn handle_message(&mut self, msg: Message) {
-        if let Message::Bpm(val) = msg { self.bpm = val }
+    fn handle_message(&mut self, msg: MetronomeMessage) {
+        match msg {
+            MetronomeMessage::Bpm(val) => self.bpm = val,
+        }
     }
 }
 
@@ -38,7 +44,7 @@ impl NodeUi for MetronomeParameters {
                         .logarithmic(true)
                     );
                     if bpm_res.changed() {
-                        let _ = self.sender.send(Message::Bpm(self.bpm));
+                        let _ = self.sender.send(MetronomeMessage::Bpm(self.bpm));
                     }
                 });
             });
@@ -53,7 +59,7 @@ impl NodeUi for MetronomeParameters {
 pub struct MetronomeNode {
     params: MetronomeParameters,
     phase: f32,
-    msg_receiver: Receiver<Message>,
+    msg_receiver: Receiver<MetronomeMessage>,
 }
 
 impl MetronomeNode {
@@ -74,9 +80,7 @@ impl MetronomeNode {
 
 impl Node for MetronomeNode {
     fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]) {
-        if let Ok(msg) = self.msg_receiver.try_recv() {
-            self.params.handle_message(msg);
-        };
+        drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut bpm_buf = None;
         for (port, buffer) in inputs {
