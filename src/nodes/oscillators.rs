@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
 
-use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
+use super::{PortInfo, Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 use std::f32::consts::TAU;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -57,8 +57,14 @@ impl NodeUi for OscParameters {
 
     fn ports(&self) -> PortDescriptions {
         PortDescriptions::with_ports(
-            vec!["frequency", "volume", "phase"],
-            vec!["signal out"]
+            vec![
+                PortInfo::input("frequency", "Pitch in Hz. Overrides the slider."),
+                PortInfo::input("volume", "Loudness from 0 to 100. Overrides the slider."),
+                PortInfo::input("phase", "Position in the waveform, from 0 to 1. Overrides the oscillator's own phase."),
+            ],
+            vec![
+                PortInfo::output("signal out", "The waveform."),
+            ]
         )
     }
 

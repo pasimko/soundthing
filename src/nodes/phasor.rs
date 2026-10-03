@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 
-use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
+use super::{PortInfo, Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
@@ -56,8 +56,14 @@ impl NodeUi for PhasorParameters {
 
     fn ports(&self) -> PortDescriptions {
         PortDescriptions::with_ports(
-            vec!["x", "y", "frequency"],
-            vec!["phase"]
+            vec![
+                PortInfo::input("x", "Horizontal position of the bend point, from 0 to 1."),
+                PortInfo::input("y", "Vertical position of the bend point, from 0 to 1."),
+                PortInfo::input("frequency", "Cycles per second. Overrides the slider."),
+            ],
+            vec![
+                PortInfo::output("phase", "A 0 to 1 ramp shaped by the bend point. Feed it to an oscillator's phase."),
+            ]
         )
     }
 

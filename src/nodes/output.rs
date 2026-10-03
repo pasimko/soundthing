@@ -4,7 +4,7 @@
 
 use std::iter::zip;
 use crate::{graph, nodes::{PortDescriptions}};
-use super::{Node, NodeUi};
+use super::{PortInfo, Node, NodeUi};
 
 
 
@@ -27,7 +27,9 @@ impl NodeUi for OutputParameters {
 
     fn ports(&self) -> PortDescriptions {
         PortDescriptions::with_ports(
-            vec!["audio input"],
+            vec![
+                PortInfo::input_many("audio input", "Everything connected here is added together and played."),
+            ],
             vec![]
         )
     }

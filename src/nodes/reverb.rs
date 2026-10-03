@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
+use super::{PortInfo, Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 use freeverb::Freeverb;
 
 use std::sync::mpsc::channel;
@@ -42,8 +42,15 @@ impl NodeUi for ReverbParameters {
 
     fn ports(&self) -> PortDescriptions {
         PortDescriptions::with_ports(
-            vec!["signal in", "mix", "room size", "damping"],
-            vec!["signal out"]
+            vec![
+                PortInfo::input("signal in", "The signal to add reverb to."),
+                PortInfo::input("mix", "Dry/wet balance from 0 to 100. Overrides the slider."),
+                PortInfo::input("room size", "Reverb length from 0 to 100. Overrides the slider."),
+                PortInfo::input("damping", "How quickly high frequencies fade, from 0 to 100. Overrides the slider."),
+            ],
+            vec![
+                PortInfo::output("signal out", "The dry and reverberated signal, mixed."),
+            ]
         )
     }
 

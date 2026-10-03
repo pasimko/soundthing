@@ -150,13 +150,18 @@ pub fn show_node(
     let mut painter = ctx.layer_painter(response.layer_id);
     painter.set_clip_rect(unbounded_rect());
 
-    let port = |side: &str, port_idx: usize, local_pos: egui::Pos2| {
+    let port = |is_input: bool, port_idx: usize, info: &PortInfo, local_pos: egui::Pos2| {
         let pos = to_global * local_pos;
+        // Tooltips appear after egui's default hover delay (500ms).
         let hit = ui.interact(
             egui::Rect::from_pos(pos).expand(PORT_HIT_SLOP),
-            response.id.with((side, port_idx)),
+            response.id.with((is_input, port_idx)),
             egui::Sense::click(),
-        );
+        ).on_hover_ui(|ui| {
+            ui.strong(info.name);
+            ui.label(info.description);
+            ui.weak(info.connections_text(is_input));
+        });
         let radius = if hit.hovered() { PORT_HOVER_RADIUS } else { PORT_RADIUS };
         painter.circle_filled(local_pos, radius, egui::Color32::BLACK);
         Port { pos, clicked: hit.clicked() }
@@ -165,19 +170,57 @@ pub fn show_node(
 
     let left = response.rect.left_top();
     let right = response.rect.right_top();
-    let inputs = (0..ports.inputs.len())
-        .map(|i| port("in", i, egui::pos2(left.x - PORT_OFFSET, left.y + row(i))))
+    let inputs = ports.inputs.iter().enumerate()
+        .map(|(i, info)| port(true, i, info, egui::pos2(left.x - PORT_OFFSET, left.y + row(i))))
         .collect();
-    let outputs = (0..ports.outputs.len())
-        .map(|i| port("out", i, egui::pos2(right.x + PORT_OFFSET, right.y + row(i))))
+    let outputs = ports.outputs.iter().enumerate()
+        .map(|(i, info)| port(false, i, info, egui::pos2(right.x + PORT_OFFSET, right.y + row(i))))
         .collect();
 
     NodeFrame { response, inputs, outputs }
 }
 
+/// How many edges a port is meant to have.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Connections {
+    One,
+    Many,
+}
+
+pub struct PortInfo {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub connections: Connections,
+}
+
+impl PortInfo {
+    /// An input that takes a single connection.
+    pub fn input(name: &'static str, description: &'static str) -> Self {
+        Self { name, description, connections: Connections::One }
+    }
+
+    /// An input that takes any number of connections.
+    pub fn input_many(name: &'static str, description: &'static str) -> Self {
+        Self { name, description, connections: Connections::Many }
+    }
+
+    /// An output, which can feed any number of inputs.
+    pub fn output(name: &'static str, description: &'static str) -> Self {
+        Self { name, description, connections: Connections::Many }
+    }
+
+    fn connections_text(&self, is_input: bool) -> &'static str {
+        match (is_input, self.connections) {
+            (true, Connections::One) => "Takes one connection",
+            (true, Connections::Many) => "Takes any number of connections",
+            (false, _) => "Can feed any number of inputs",
+        }
+    }
+}
+
 pub struct PortDescriptions {
-    pub inputs: Vec<&'static str>,
-    pub outputs: Vec<&'static str>,
+    pub inputs: Vec<PortInfo>,
+    pub outputs: Vec<PortInfo>,
 }
 
 impl PortDescriptions {
@@ -187,7 +230,7 @@ impl PortDescriptions {
             outputs: Vec::new(),
         }
     }
-    pub fn with_ports(inputs: Vec<&'static str>, outputs: Vec<&'static str>) -> Self {
+    pub fn with_ports(inputs: Vec<PortInfo>, outputs: Vec<PortInfo>) -> Self {
         Self {
             inputs,
             outputs,
@@ -201,6 +244,3 @@ pub fn vol_smooth(target: f32, start: f32, n: i32) -> f32 {
     target + 0.999_f32.powi(n) * (start - target)
 }
 
-fn ratio2pole(t: f32, ratio: f32) -> f32 {
-    return ratio.powf(1./((t+f32::EPSILON)*SAMPLERATE as f32));
-}

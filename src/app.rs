@@ -324,7 +324,7 @@ impl eframe::App for Canvas {
                         self.add_node(Box::new(new_osc), Box::new(new_metronome_handler), None);
                         ui.close();
                     }
-                    if ui.button("envelope").clicked() {
+                    if ui.button("adsr").clicked() {
                         let (new_osc, new_phasor_handler) = AdsrNode::new();
                         self.add_node(Box::new(new_osc), Box::new(new_phasor_handler), None);
                         ui.close();

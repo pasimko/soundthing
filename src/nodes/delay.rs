@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 use ringbuf::{traits::*,LocalRb, storage::Heap};
 use crate::nodes::PortDescriptions;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, NodeUi, drain_messages};
+use super::{PortInfo, Node, SAMPLERATE, NodeUi, drain_messages};
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -41,8 +41,12 @@ impl NodeUi for DelayParameters {
 
     fn ports(&self) -> PortDescriptions {
         PortDescriptions::with_ports(
-            vec!["delay"],
-            vec!["signal out"]
+            vec![
+                PortInfo::input("signal in", "The signal to delay."),
+            ],
+            vec![
+                PortInfo::output("signal out", "The delayed signal."),
+            ]
         )
     }
 

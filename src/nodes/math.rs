@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::PortDescriptions;
 use crate::nodes::graph;
-use super::{Node, NodeUi, math, drain_messages};
+use super::{PortInfo, Node, NodeUi, math, drain_messages};
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -49,8 +49,13 @@ impl NodeUi for MathParameters {
 
     fn ports(&self) -> PortDescriptions {
         PortDescriptions::with_ports(
-            vec!["a", "b"],
-            vec!["result"]
+            vec![
+                PortInfo::input("a", "First operand. Overrides its knob."),
+                PortInfo::input("b", "Second operand. Overrides its knob."),
+            ],
+            vec![
+                PortInfo::output("result", "The operation applied to a and b."),
+            ]
         )
     }
 

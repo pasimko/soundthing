@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
+use super::{PortInfo, Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -35,8 +35,12 @@ impl NodeUi for NoiseParameters {
 
     fn ports(&self) -> PortDescriptions {
         PortDescriptions::with_ports(
-            vec!["volume"],
-            vec!["signal out"]
+            vec![
+                PortInfo::input("volume", "Noise amplitude. Overrides the slider."),
+            ],
+            vec![
+                PortInfo::output("signal out", "White noise."),
+            ]
         )
     }
 

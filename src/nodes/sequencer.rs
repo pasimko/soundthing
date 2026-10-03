@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
+use super::{PortInfo, Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -35,8 +35,12 @@ impl NodeUi for SequencerParameters {
 
     fn ports(&self) -> PortDescriptions {
         PortDescriptions::with_ports(
-            vec!["trigger pulse"],
-            vec!["signal out"]
+            vec![
+                PortInfo::input("trigger pulse", "Each pulse advances the sequence by one step."),
+            ],
+            vec![
+                PortInfo::output("signal out", "The value of the current step."),
+            ]
         )
     }
 

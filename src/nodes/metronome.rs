@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::PortDescriptions;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, NodeUi, drain_messages};
+use super::{PortInfo, Node, SAMPLERATE, NodeUi, drain_messages};
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -43,8 +43,12 @@ impl NodeUi for MetronomeParameters {
 
     fn ports(&self) -> PortDescriptions {
         PortDescriptions::with_ports(
-            vec!["bpm"],
-            vec!["pulse out"]
+            vec![
+                PortInfo::input("bpm", "Tempo in beats per minute. Overrides the slider."),
+            ],
+            vec![
+                PortInfo::output("pulse out", "1 for a single sample on each beat, otherwise 0."),
+            ]
         )
     }
 
