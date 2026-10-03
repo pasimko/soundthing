@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::PortDescriptions;
 use crate::nodes::graph;
-use super::{Node, Message, NodeUi, math};
+use super::{Node, NodeUi, math, drain_messages};
 
 use egui::Id;
 use std::sync::mpsc::channel;
@@ -14,21 +14,26 @@ pub enum Operation {
     Exp,
 }
 
+pub enum MathMessage {
+    Operation(Operation),
+    SetA(f32),
+    SetB(f32),
+}
+
 #[derive(Debug, Clone)]
 pub struct MathParameters {
     pub a: f32,
     pub b: f32,
-    pub sender: Sender<Message>,
+    pub sender: Sender<MathMessage>,
     pub operation: Operation,
 }
 
 impl MathParameters {
-    fn handle_message(&mut self, msg: Message) {
+    fn handle_message(&mut self, msg: MathMessage) {
         match msg {
-            Message::Operation(val) => self.operation = val,
-            Message::SetA(val) => self.a = val,
-            Message::SetB(val) => self.b = val,
-            _ => (),
+            MathMessage::Operation(val) => self.operation = val,
+            MathMessage::SetA(val) => self.a = val,
+            MathMessage::SetB(val) => self.b = val,
         }
     }
 }
@@ -48,23 +53,23 @@ impl NodeUi for MathParameters {
                         ui.set_width(100.0); // To make sure we wrap long text
                         if ui.button("+").clicked() {
                             self.operation = math::Operation::Add;
-                            let _ = self.sender.send(Message::Operation(math::Operation::Add));
+                            let _ = self.sender.send(MathMessage::Operation(math::Operation::Add));
                         }
                         if ui.button("*").clicked() {
                             self.operation = math::Operation::Mul;
-                            let _ = self.sender.send(Message::Operation(math::Operation::Mul));
+                            let _ = self.sender.send(MathMessage::Operation(math::Operation::Mul));
                         }
                         if ui.button("^").clicked() {
                             self.operation = math::Operation::Exp;
-                            let _ = self.sender.send(Message::Operation(math::Operation::Exp));
+                            let _ = self.sender.send(MathMessage::Operation(math::Operation::Exp));
                         }
                     });
                     let b_res = ui.add_enabled(true, egui::DragValue::new(&mut self.b));
                     if a_res.changed() {
-                        let _ = self.sender.send(Message::SetA(self.a));
+                        let _ = self.sender.send(MathMessage::SetA(self.a));
                     }
                     if b_res.changed() {
-                        let _ = self.sender.send(Message::SetB(self.b));
+                        let _ = self.sender.send(MathMessage::SetB(self.b));
                     }
                 });
             });
@@ -79,7 +84,7 @@ impl NodeUi for MathParameters {
 
 pub struct MathNode {
     params: MathParameters,
-    msg_receiver: Receiver<Message>,
+    msg_receiver: Receiver<MathMessage>,
 }
 
 impl MathNode {
@@ -101,9 +106,7 @@ impl MathNode {
 
 impl Node for MathNode {
     fn process(&mut self, inputs: &[(graph::PortId, &[f32])], output: &mut [f32]) {
-        if let Ok(msg) = self.msg_receiver.try_recv() {
-            self.params.handle_message(msg);
-        };
+        drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut a_buf = None;
         let mut b_buf = None;

@@ -1,3 +1,5 @@
+use std::sync::mpsc::Receiver;
+
 use crate::nodes::{
     adsr::{AdsrParameters},
     delay::*,
@@ -53,28 +55,11 @@ pub enum NodeParameter {
     Noise(NoiseParameters),
 }
 
-// I don't love this
-// TODO split up this god enum?
-#[derive(Clone)]
-pub enum Message {
-    Attack(f32),
-    Bpm(f32),
-    Damping(u8),
-    Decay(f32),
-    Delay(u32),
-    Frequency(f32),
-    Gate(bool),
-    Mix(u8),
-    Operation(math::Operation),
-    Phase(f32),
-    Release(f32),
-    RoomSize(u8),
-    Sequence(Vec<f32>),
-    SetA(f32),
-    SetB(f32),
-    Sustain(f32),
-    Volume(u8),
-    Waveform(oscillators::Waveform),
+/// Applies every pending UI message, oldest first, so rapid edits aren't dropped.
+pub fn drain_messages<M>(rx: &Receiver<M>, mut handle: impl FnMut(M)) {
+    while let Ok(msg) = rx.try_recv() {
+        handle(msg);
+    }
 }
 
 pub trait NodeUi {

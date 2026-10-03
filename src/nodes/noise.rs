@@ -1,20 +1,26 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, Message, NodeUi, PortDescriptions};
+use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 use egui::Id;
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
+pub enum NoiseMessage {
+    Volume(u8),
+}
+
 #[derive(Debug, Clone)]
 pub struct NoiseParameters {
     pub target_vol: u8,
-    pub sender: Sender<Message>,
+    pub sender: Sender<NoiseMessage>,
 }
 
 impl NoiseParameters {
-    fn handle_message(&mut self, msg: Message) {
-        if let Message::Volume(val) = msg { self.target_vol = val }
+    fn handle_message(&mut self, msg: NoiseMessage) {
+        match msg {
+            NoiseMessage::Volume(val) => self.target_vol = val,
+        }
     }
 }
 
@@ -28,7 +34,7 @@ impl NodeUi for NoiseParameters {
                         .text("volume")
                         .logarithmic(true));
                     if vol_res.changed() {
-                        let _ = self.sender.send(Message::Volume(self.target_vol));
+                        let _ = self.sender.send(NoiseMessage::Volume(self.target_vol));
                     }
                 });
             });
@@ -44,7 +50,7 @@ pub struct NoiseNode {
     params: NoiseParameters,
     state: u32,
     idx: usize,
-    msg_receiver: Receiver<Message>,
+    msg_receiver: Receiver<NoiseMessage>,
 }
 
 impl NoiseNode {
@@ -66,9 +72,7 @@ impl NoiseNode {
 
 impl Node for NoiseNode {
     fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]) {
-        if let Ok(msg) = self.msg_receiver.try_recv() {
-            self.params.handle_message(msg);
-        }
+        drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
 
         let mut vol_buf = None;
         for (port, buffer) in inputs {

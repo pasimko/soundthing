@@ -1,20 +1,26 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{Node, SAMPLERATE, Message, NodeUi, PortDescriptions};
+use super::{Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
 use egui::Id;
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
+pub enum SequencerMessage {
+    Sequence(Vec<f32>),
+}
+
 #[derive(Debug, Clone)]
 pub struct SequencerParameters {
     pub sequence: Vec<f32>,
-    pub sender: Sender<Message>,
+    pub sender: Sender<SequencerMessage>,
 }
 
 impl SequencerParameters {
-    fn handle_message(&mut self, msg: Message) {
-        if let Message::Sequence(val) = msg { self.sequence = val }
+    fn handle_message(&mut self, msg: SequencerMessage) {
+        match msg {
+            SequencerMessage::Sequence(val) => self.sequence = val,
+        }
     }
 }
 
@@ -31,7 +37,7 @@ impl NodeUi for SequencerParameters {
                         }
                     }
                     if changed {
-                        let _ = self.sender.send(Message::Sequence(self.sequence.clone()));
+                        let _ = self.sender.send(SequencerMessage::Sequence(self.sequence.clone()));
                     }
                 });
             });
@@ -46,7 +52,7 @@ impl NodeUi for SequencerParameters {
 pub struct SequencerNode {
     params: SequencerParameters,
     idx: usize,
-    msg_receiver: Receiver<Message>,
+    msg_receiver: Receiver<SequencerMessage>,
 }
 
 impl SequencerNode {
@@ -67,9 +73,7 @@ impl SequencerNode {
 
 impl Node for SequencerNode {
     fn process(&mut self, inputs: &[(PortId, &[f32])], output: &mut [f32]) {
-        if let Ok(msg) = self.msg_receiver.try_recv() {
-            self.params.handle_message(msg);
-        }
+        drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
 
         let mut idx_buf: Option<Vec<usize>> = None;
         let seq_len = self.params.sequence.len();
