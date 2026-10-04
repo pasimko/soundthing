@@ -31,7 +31,6 @@ pub struct PhasorParameters {
     pub freq: f32,
     pub point: (f32, f32),
     pub sender: Sender<PhasorMessage>,
-    pub name: String,
 }
 
 impl PhasorParameters {
@@ -123,7 +122,6 @@ impl PhaseBender {
         let params = PhasorParameters {
             freq: 440.,
             sender: msg_sender,
-            name: "Phasor".to_string(),
             point: (0.5, 0.5),
         };
         Self::build(params, msg_receiver)
@@ -177,6 +175,7 @@ impl Node for PhaseBender {
                 .map(|b| b[i])
                 .unwrap_or(self.params.freq);
 
+            // 0.2, 0.5
             if self.phase < x {
                 self.phase += y / x / (SAMPLERATE as f32 / freq);
             }

@@ -1,6 +1,9 @@
 TODO:
   * rhythm metronome
   * metronome "sustain" node
+    * pulsewidth :)
+  * feels like phase bender isn't working the way it should
+    * top left and bottom right corners should have different patterns
   * rst stuff for oscs
   * Fix phasor/osc integration
     * phase bender shouldn't have a freq?

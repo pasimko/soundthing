@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use super::graph;
-use egui::Id;
+use egui::{Id, Shape};
 use egui::{
     Color32, Pos2, Stroke, Vec2, pos2,
     emath::TSTransform,
@@ -13,10 +13,73 @@ phasor::PhaseBender, delay::DelayNode, reverb::ReverbNode};
 
 enum Mode {
     Normal,
-    ClickingSink(graph::NodeId, graph::PortId),
-    ClickingSource(graph::NodeId, graph::PortId),
+    Connecting { anchor: PortRef, dragging: bool },
     EdgeKnife(Pos2),
     Cloning(CloneDrag)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Side {
+    Input,
+    Output,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct PortRef {
+    node: graph::NodeId,
+    port: graph::PortId,
+    side: Side,
+}
+
+// How close a dragged edge has to get to a port to snap to it
+const SNAP_RADIUS: f32 = 14.0;
+
+/// The edge joining an output and an input, whichever order they're given in. `None` if they're
+/// on the same side or on the same node.
+impl PortRef {
+    fn address(self) -> graph::PortAddress {
+        graph::PortAddress { node: self.node, port: self.port }
+    }
+}
+
+/// Returns a valid edge construction between two ports, if possible
+fn edge_between(a: PortRef, b: PortRef) -> Option<graph::Edge> {
+    if a.node == b.node {
+        return None;
+    }
+    match (a.side, b.side) {
+        (Side::Output, Side::Input) => Some(graph::Edge { from: a.address(), to: b.address() }),
+        (Side::Input, Side::Output) => Some(graph::Edge { from: b.address(), to: a.address() }),
+        _ => None,
+    }
+}
+
+fn port_pos(frames: &[NodeFrame], port: PortRef) -> Pos2 {
+    let frame = &frames[port.node.0];
+    match port.side {
+        Side::Input => frame.inputs[port.port.0].pos,
+        Side::Output => frame.outputs[port.port.0].pos,
+    }
+}
+
+/// The closest port to `pointer`, within snapping range, that `anchor` could connect to.
+fn port_near(frames: &[NodeFrame], anchor: PortRef, pointer: Pos2) -> Option<PortRef> {
+    let mut best: Option<(f32, PortRef)> = None;
+    for (node, frame) in frames.iter().enumerate() {
+        for (side, ports) in [(Side::Input, &frame.inputs), (Side::Output, &frame.outputs)] {
+            for (port, p) in ports.iter().enumerate() {
+                let candidate = PortRef { node: graph::NodeId(node), port: graph::PortId(port), side };
+                let dist = p.pos.distance(pointer);
+                if dist <= SNAP_RADIUS
+                    && edge_between(anchor, candidate).is_some()
+                    && best.is_none_or(|(d, _)| dist < d)
+                {
+                    best = Some((dist, candidate));
+                }
+            }
+        }
+    }
+    best.map(|(_, port)| port)
 }
 
 pub struct Canvas {
@@ -24,15 +87,16 @@ pub struct Canvas {
     node_parameters: Vec<Box<dyn NodeUi>>,
     // where each node's window goes; parallel to `node_parameters`
     placements: Vec<Option<Placement>>,
-    incoming_edges: Vec<graph::Edge>,
-    current_mode: Mode, // TODO maybe make this match? Maybe Option<Mode>?
-                        // Clone drag, port drag, knife drag could all be different
-                        // mode options
+    edges: Vec<graph::Edge>,
+    current_mode: Mode,
     // offset applied to every node window, in screen points
     pan: Vec2,
     // since knife drags are finished outside of the edge drawing loop, this saves the cut for
     // when edge positions are known
     pending_cut: Option<(Pos2, Pos2)>,
+    // the port an edge drag is snapped to, and when it got there. egui only reports hovers for
+    // the dragged port, so the usual port tooltips can't appear for the drop target.
+    drag_hover: Option<(PortRef, f64)>,
 }
 
 /// An alt-drag in progress. egui ties the drag to the original window, so instead the
@@ -62,10 +126,11 @@ impl Canvas {
             graph_handler,
             node_parameters: vec![Box::new(output_handler)],
             placements: vec![None],
-            incoming_edges: vec!(),
+            edges: vec!(),
             current_mode: Mode::Normal,
             pan: Vec2::ZERO,
             pending_cut: None,
+            drag_hover: None,
         }
     }
 
@@ -82,13 +147,48 @@ impl Canvas {
         self.node_parameters.len() - 1
     }
 
-    // TODO make this not 1000 lines long
-    /// Render nodes, edges, and ports. Also handles clicks/drags on ports (and background?)
+    /// Select edges going to a node that should take just one incoming edge
+    fn edges_displaced_by(&self, edge: graph::Edge) -> Vec<graph::Edge> {
+        let takes_one = self.node_parameters[edge.to.node.0].ports().inputs[edge.to.port.0].connections == Connections::One;
+        if takes_one {
+            self.edges.iter().copied().filter(|e| e.to == edge.to && *e != edge).collect()
+        }
+        else {
+            vec!()
+        }
+    }
+
+    /// Add or replace an edge
+    fn connect(&mut self, edge: graph::Edge) {
+        if self.edges.contains(&edge) {
+            return;
+        }
+        // pick the node parameter that our edge is going to
+        // get its port descriptions
+        // get the input port_info that we're going to
+        // get how many connections it takes
+        let replaced = self.edges_displaced_by(edge);
+        self.edges.retain(|e| !replaced.contains(e));
+        for old in replaced {
+            let _ = self.graph_handler.send(AudioGraphMessage::RemoveEdge(old));
+        }
+        
+        self.edges.push(edge);
+        let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(edge));
+    }
+
+    /// Render nodes, edges, and ports. Also handles clicks/drags on ports
+    // TODO make not one million lines long holy moly this just keeps getting worse
     pub fn render_nodes(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         let mut frames: Vec<NodeFrame> = Vec::new();
-        let mut duplicate_requests = Vec::new(); // Needed because we can't modify the nodes vec while
-                                                 // enumerating it
         let to_global = TSTransform::from_translation(self.pan);
+
+        // Needed because we can't modify the nodes/edge vecs while enumerating them
+        let mut new_node_requests = Vec::new();
+        let mut new_edge_requests = Vec::new();
+
+        // the compatible port being hovered while connecting by clicking
+        let mut click_hover = None;
 
         // Handle clone by dragging
         if let Mode::Cloning(drag) = self.current_mode {
@@ -105,6 +205,7 @@ impl Canvas {
             }
         }
 
+        // Render each node and its ports
         for (idx, p) in self.node_parameters.iter_mut().enumerate() {
             // The window's layer is keyed by `Id::new(idx)` (see `node_window`).
             ctx.set_transform_layer(
@@ -114,62 +215,54 @@ impl Canvas {
             let frame = show_node(ctx, ui, idx, p.as_mut(), self.placements[idx]);
 
             if frame.response.drag_started() && ctx.input(|i| i.modifiers.alt) {
-                duplicate_requests.push((idx, frame.response.rect.min));
+                new_node_requests.push((idx, frame.response.rect.min));
             }
-            // if matches!(self.current_mode, Mode::Cloning(_)) .is_some_and(|drag| drag.clone == idx) {
             if let Mode::Cloning(dragged) = self.current_mode && dragged.clone == idx { 
                 ctx.move_to_top(frame.response.layer_id);
             }
 
-            for (port_idx, port) in frame.inputs.iter().enumerate() {
-                if port.clicked || port.dragged {
-                    let current_node = (graph::NodeId(idx), graph::PortId(port_idx));
-                    match self.current_mode {
-                        // Finish creating new edge
-                        Mode::ClickingSink(node_id, port) => {
-                            let new_edge = graph::Edge { 
-                                from: (node_id, port), 
-                                to: current_node,
-                            };
-                            self.incoming_edges.push(new_edge);
-                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
-                            self.current_mode = Mode::Normal;
-                        },
-                        // Start creating new edge
-                        Mode::Normal => {
-                            self.current_mode = Mode::ClickingSource(current_node.0, current_node.1);
-                        },
-                        _ => {}
+            // Handle port interactions
+            for (side, ports) in [(Side::Input, &frame.inputs), (Side::Output, &frame.outputs)] {
+                for (port_idx, port) in ports.iter().enumerate() {
+                    let this = PortRef { node: graph::NodeId(idx), port: graph::PortId(port_idx), side };
+                    if port.drag_started {
+                        if matches!(self.current_mode, Mode::Normal | Mode::Connecting { .. }) {
+                            self.current_mode = Mode::Connecting { anchor: this, dragging: true };
+                        }
                     }
-                }
-            }
-
-            for (port_idx, port) in frame.outputs.iter().enumerate() {
-                if port.clicked {
-                    let current_node = (graph::NodeId(idx), graph::PortId(port_idx));
-                    match self.current_mode {
-                        // Finish creating new edge
-                        Mode::ClickingSource(node_id, port) => {
-                            let new_edge = graph::Edge { 
-                                from: current_node,
-                                to: (node_id, port), 
-                            };
-                            self.incoming_edges.push(new_edge);
-                            let _ = self.graph_handler.send(AudioGraphMessage::AddEdge(new_edge));
-                            self.current_mode = Mode::Normal;
-                        },
-                        // Start creating new edge
-                        Mode::Normal => {
-                            self.current_mode = Mode::ClickingSink(current_node.0, current_node.1);
-                        },
-                        _ => {}
+                    else if port.clicked {
+                        match self.current_mode {
+                            // Start creating new edge
+                            Mode::Normal => {
+                                self.current_mode = Mode::Connecting { anchor: this, dragging: false };
+                            },
+                            // Clicking the same port again cancels
+                            Mode::Connecting { anchor, .. } if anchor == this => {
+                                self.current_mode = Mode::Normal;
+                            },
+                            // Finish creating new edge
+                            Mode::Connecting { anchor, .. } => {
+                                if let Some(edge) = edge_between(anchor, this) {
+                                    new_edge_requests.push(edge);
+                                    self.current_mode = Mode::Normal;
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                    else if port.hovered {
+                        if let Mode::Connecting { anchor, dragging: false } = self.current_mode {
+                            if edge_between(anchor, this).is_some() {
+                                click_hover = Some(this);
+                            }
+                        }
                     }
                 }
             }
             frames.push(frame);
         }
 
-        for (idx, pos) in duplicate_requests {
+        for (idx, pos) in new_node_requests {
             if let Some((node, params)) = self.node_parameters[idx].duplicate() {
                 let clone = self.add_node(node, params, Some(Placement::Initial(pos)));
                 if let Some(press) = ctx.input(|i| i.pointer.press_origin()) {
@@ -184,16 +277,34 @@ impl Canvas {
             }
         }
 
+        // Finish or cancel an edge drag now that every port's position is known
+        if let Mode::Connecting { anchor, dragging: true, .. } = self.current_mode {
+            if !ctx.input(|i| i.pointer.primary_down()) {
+                let target = ctx.input(|i| i.pointer.latest_pos())
+                    .and_then(|pointer| port_near(&frames, anchor, pointer));
+                if let Some(edge) = target.and_then(|target| edge_between(anchor, target)) {
+                    new_edge_requests.push(edge);
+                }
+                self.current_mode = Mode::Normal;
+            }
+        }
+        if matches!(self.current_mode, Mode::Connecting { .. }) && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.current_mode = Mode::Normal;
+        }
+        for edge in new_edge_requests {
+            self.connect(edge);
+        }
+
         let edge_segment = |edge: &graph::Edge| {
             (
-                frames[edge.from.0.0].outputs[edge.from.1.0].pos,
-                frames[edge.to.0.0].inputs[edge.to.1.0].pos,
+                frames[edge.from.node.0].outputs[edge.from.port.0].pos,
+                frames[edge.to.node.0].inputs[edge.to.port.0].pos,
             )
         };
 
         if let Some((cut_a, cut_b)) = self.pending_cut.take() {
             let mut removed = Vec::new();
-            self.incoming_edges.retain(|edge| {
+            self.edges.retain(|edge| {
                 let (from, to) = edge_segment(edge);
                 let hit = segments_intersect(cut_a, cut_b, from, to);
                 if hit {
@@ -206,45 +317,89 @@ impl Canvas {
             }
         }
 
-        // Draw edges
         let painter = ctx.layer_painter(egui::LayerId::background());
-        for edge in self.incoming_edges.iter() {
-            let (from, to) = edge_segment(edge);
-            let mut color = Color32::GRAY;
-            if let Mode::EdgeKnife(knife_start) = self.current_mode {
-                if let Some(knife_end) = ctx.input(|i| i.pointer.latest_pos()) {
-                    if segments_intersect(knife_start, knife_end, from, to) {
-                        color = Color32::RED;
-                    }
-                }
-            }
-            painter.line(vec![from, to], Stroke::new(2.0_f32, color));
-        }
-
-        let painter = ctx.layer_painter(egui::LayerId::new(egui::layers::Order::Foreground, Id::new("ephemeral interaction")));
+        let ephemeral_layer = egui::LayerId::new(egui::layers::Order::Foreground, Id::new("ephemeral interaction"));
+        let ephemeral_painter = ctx.layer_painter(ephemeral_layer);
+        // the edge that connecting right now would make; its displaced edges are drawn red below
+        let mut potential_edge = None;
         match self.current_mode {
-            Mode::ClickingSource(node_id, port) => {
-                let sink_port_pos = frames[node_id.0].inputs[port.0].pos;
-
-                // draw the line
-                if let Some(mouse_pos) = ctx.input(|i| i.pointer.latest_pos()) {
-                    painter.line(vec![sink_port_pos, mouse_pos], Stroke::new(2.0_f32, Color32::PURPLE));
-                }
-            }
-            Mode::ClickingSink(node_id, port) => {
-                let source_port_pos = frames[node_id.0].outputs[port.0].pos;
-
-                // draw the line
-                if let Some(mouse_pos) = ctx.input(|i| i.pointer.latest_pos()) {
-                    painter.line(vec![source_port_pos, mouse_pos], Stroke::new(2.0_f32, Color32::PURPLE));
+            Mode::Connecting { anchor, dragging } => {
+                if let Some(pointer) = ctx.input(|i| i.pointer.latest_pos()) {
+                    // The line snaps onto a port it could connect to: the nearest one while
+                    // dragging, the hovered one while clicking
+                    let target = if dragging { port_near(&frames, anchor, pointer) } else { click_hover };
+                    let end = target.map_or(pointer, |target| port_pos(&frames, target));
+                    ephemeral_painter.line(vec![port_pos(&frames, anchor), end], Stroke::new(2.0_f32, Color32::PURPLE));
+                    if let Some(target) = target {
+                        ephemeral_painter.circle_filled(end, PORT_HOVER_RADIUS, Color32::BLACK);
+                        potential_edge = edge_between(anchor, target);
+                    }
+                    // Manually show tooltips since there's no hover detection in drag mode
+                    let now = ctx.input(|i| i.time);
+                    let target = target.filter(|_| dragging);
+                    match (target, self.drag_hover) {
+                        (Some(target), Some((hovered, _))) if target == hovered => {}
+                        (Some(target), _) => self.drag_hover = Some((target, now)),
+                        (None, _) => self.drag_hover = None,
+                    }
+                    if let Some((hovered, since)) = self.drag_hover {
+                        let delay = ctx.style().interaction.tooltip_delay as f64;
+                        if now - since < delay {
+                            ctx.request_repaint_after_secs((since + delay - now) as f32);
+                        } else {
+                            let is_input = hovered.side == Side::Input;
+                            let ports = self.node_parameters[hovered.node.0].ports();
+                            let info = if is_input {
+                                &ports.inputs[hovered.port.0]
+                            } else {
+                                &ports.outputs[hovered.port.0]
+                            };
+                            let port_rect = egui::Rect::from_center_size(
+                                port_pos(&frames, hovered),
+                                Vec2::splat(PORT_HOVER_RADIUS * 2.),
+                            );
+                            egui::Tooltip::always_open(ctx.clone(), ephemeral_layer, Id::new("edge drag tooltip"), port_rect)
+                                .show(|ui| port_tooltip(ui, info, is_input));
+                        }
+                    }
                 }
             }
             Mode::EdgeKnife(knife_start) => {
                 if let Some(knife_end) = ctx.input(|i| i.pointer.latest_pos()) {
-                    painter.line_segment([knife_start, knife_end], Stroke::new(2.0_f32, Color32::RED));
+                    ephemeral_painter.add(Shape::dashed_line(&[knife_start, knife_end], Stroke::new(2.0_f32, Color32::RED), 6.0, 2.5));
                 }
             }
             _ => {}
+        }
+
+        // Draw edges
+        for edge in self.edges.iter() {
+            let (from, to) = edge_segment(edge);
+            let mut color = Color32::GRAY;
+            match self.current_mode {
+                Mode::EdgeKnife(knife_start) => {
+                    if let Some(knife_end) = ctx.input(|i| i.pointer.latest_pos()) {
+                        if segments_intersect(knife_start, knife_end, from, to) {
+                            color = Color32::RED;
+                        }
+                    }
+                }
+                Mode::Connecting { .. } => {
+                    if let Some(potential_edge) = potential_edge {
+                        if self.edges_displaced_by(potential_edge).contains(edge) {
+                            color = Color32::RED;
+                        }
+                    }
+                }
+                _ => {}
+
+            }
+            painter.line(vec![from, to], Stroke::new(2.0_f32, color));
+        }
+
+        // This feels like an out-of-place check
+        if !matches!(self.current_mode, Mode::Connecting { dragging: true, .. }) {
+            self.drag_hover = None;
         }
     }
 }
@@ -268,7 +423,7 @@ impl eframe::App for Canvas {
             });
         });
 
-        let panel_response = egui::CentralPanel::default().show(ctx, |ui| {
+        let _panel_response = egui::CentralPanel::default().show(ctx, |ui| {
             // TODO hotkeys and stuff here probably
             let bg_id = ui.id().with("bg_click");
             let bg_response = ui.interact(ui.max_rect(), bg_id, egui::Sense::click_and_drag());

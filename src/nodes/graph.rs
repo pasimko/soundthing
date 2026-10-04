@@ -11,9 +11,15 @@ pub struct NodeId(pub usize);
 pub struct PortId(pub usize);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PortAddress {
+    pub node: NodeId,
+    pub port: PortId,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Edge {
-    pub from: (NodeId, PortId),
-    pub to: (NodeId, PortId),
+    pub from: PortAddress,
+    pub to: PortAddress,
 }
 
 pub struct AudioGraph {
@@ -58,9 +64,9 @@ impl AudioGraph {
         for node_idx in top_sorted.iter().cloned() {
             let mut sources: Vec<(PortId, &[f32])> = Vec::new();
             for edge in self.incoming_edges[node_idx].iter().cloned() {
-                let source_idx = edge.from.0;
-                let source_port = edge.from.1;
-                let sink_port = edge.to.1;
+                let source_idx = edge.from.node;
+                let source_port = edge.from.port;
+                let sink_port = edge.to.port;
                 sources.push((sink_port, buffers[source_idx.0][source_port.0].as_slice()));
             }
             let mut node_outputs = buffers[node_idx].clone();
@@ -81,7 +87,7 @@ impl AudioGraph {
             return
         }
         visited[node_idx] = true;
-        self.incoming_edges[node_idx].iter().for_each(|edge| self.visit(edge.from.0.0, visited, top_sorted));
+        self.incoming_edges[node_idx].iter().for_each(|edge| self.visit(edge.from.node.0, visited, top_sorted));
         top_sorted.push(node_idx);
     }
     pub fn get_handle(&self) -> Sender<AudioGraphMessage> {
@@ -95,12 +101,12 @@ impl AudioGraph {
                     self.incoming_edges.push(Vec::new());
                 },
                 AudioGraphMessage::AddEdge(edge) => {
-                    self.incoming_edges[edge.to.0.0].push(edge); // look at this shit man this is
+                    self.incoming_edges[edge.to.node.0].push(edge); // look at this shit man this is
                                                                  // humiliating you gotta make this
                                                                  // indexable ASAP
                 },
                 AudioGraphMessage::RemoveEdge(edge) => {
-                    self.incoming_edges[edge.to.0.0].retain(|e| *e != edge);
+                    self.incoming_edges[edge.to.node.0].retain(|e| *e != edge);
                 }
             }
         }

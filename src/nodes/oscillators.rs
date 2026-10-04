@@ -177,8 +177,8 @@ impl Node for OscNode {
 
             match self.params.waveform {
                 Waveform::Sine => output[i] = (phase * TAU).sin() * (vol / 100.0),
-                Waveform::Saw => output[i] = (self.phase - 1.) * (vol / 100.),
-                Waveform::Square => output[i] = self.phase.round() * (vol / 100.),
+                Waveform::Saw => output[i] = (phase - 1.) * (vol / 100.),
+                Waveform::Square => output[i] = phase.round() * (vol / 100.),
                 Waveform::Tri => {}
             }
             self.phase = phase.rem_euclid(1.);

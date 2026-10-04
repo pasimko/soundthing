@@ -97,7 +97,8 @@ pub struct Port {
     /// Screen space, regardless of how far the window's layer is panned.
     pub pos: egui::Pos2,
     pub clicked: bool,
-    pub dragged: bool,
+    pub drag_started: bool,
+    pub hovered: bool,
 }
 
 pub struct NodeFrame {
@@ -107,11 +108,11 @@ pub struct NodeFrame {
 }
 
 const PORT_RADIUS: f32 = 5.5;
-const PORT_HOVER_RADIUS: f32 = 7.0;
+pub const PORT_HOVER_RADIUS: f32 = 7.0;
 const PORT_SPACING: f32 = 18.0;
 // how far outside the window's edge a port sits
 const PORT_OFFSET: f32 = 10.0;
-const PORT_HIT_SLOP: f32 = 8.0;
+pub const PORT_HIT_SLOP: f32 = 8.0;
 
 // egui clips to the screen rect in a layer's own coordinates, which hides anything that
 // has been panned past the original screen edge, so layers draw with this clip instead.
@@ -132,6 +133,13 @@ fn node_window<'a>(title: String, idx: usize, placement: Option<Placement>) -> e
         Some(Placement::Fixed(pos)) => window.fixed_pos(pos),
         None => window,
     }
+}
+
+/// The contents of a port's tooltip.
+pub fn port_tooltip(ui: &mut egui::Ui, info: &PortInfo, is_input: bool) {
+    ui.strong(info.name);
+    ui.label(info.description);
+    ui.weak(info.connections_text(is_input));
 }
 
 /// Shows a node's window and its ports. `ui` is the canvas the ports' clicks are sensed in.
@@ -162,14 +170,10 @@ pub fn show_node(
             egui::Rect::from_pos(pos).expand(PORT_HIT_SLOP),
             response.id.with((is_input, port_idx)),
             egui::Sense::click_and_drag(),
-        ).on_hover_ui(|ui| {
-            ui.strong(info.name);
-            ui.label(info.description);
-            ui.weak(info.connections_text(is_input));
-        });
+        ).on_hover_ui(|ui| port_tooltip(ui, info, is_input));
         let radius = if hit.hovered() { PORT_HOVER_RADIUS } else { PORT_RADIUS };
         painter.circle_filled(local_pos, radius, egui::Color32::BLACK);
-        Port { pos, clicked: hit.clicked(), dragged: hit.dragged() }
+        Port { pos, clicked: hit.clicked(), drag_started: hit.drag_started(), hovered: hit.contains_pointer() }
     };
     let row = |port_idx: usize| PORT_RADIUS * 2. + PORT_SPACING * port_idx as f32;
 
