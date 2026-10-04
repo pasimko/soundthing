@@ -126,7 +126,7 @@ impl Canvas {
             graph_handler,
             node_parameters: vec![Box::new(output_handler)],
             placements: vec![None],
-            edges: vec!(),
+            edges: vec![],
             current_mode: Mode::Normal,
             pan: Vec2::ZERO,
             pending_cut: None,
@@ -154,7 +154,7 @@ impl Canvas {
             self.edges.iter().copied().filter(|e| e.to == edge.to && *e != edge).collect()
         }
         else {
-            vec!()
+            vec![]
         }
     }
 
@@ -250,13 +250,11 @@ impl Canvas {
                             _ => {}
                         }
                     }
-                    else if port.hovered {
-                        if let Mode::Connecting { anchor, dragging: false } = self.current_mode {
-                            if edge_between(anchor, this).is_some() {
+                    else if port.hovered
+                        && let Mode::Connecting { anchor, dragging: false } = self.current_mode
+                            && edge_between(anchor, this).is_some() {
                                 click_hover = Some(this);
                             }
-                        }
-                    }
                 }
             }
             frames.push(frame);
@@ -278,8 +276,8 @@ impl Canvas {
         }
 
         // Finish or cancel an edge drag now that every port's position is known
-        if let Mode::Connecting { anchor, dragging: true, .. } = self.current_mode {
-            if !ctx.input(|i| i.pointer.primary_down()) {
+        if let Mode::Connecting { anchor, dragging: true, .. } = self.current_mode
+            && !ctx.input(|i| i.pointer.primary_down()) {
                 let target = ctx.input(|i| i.pointer.latest_pos())
                     .and_then(|pointer| port_near(&frames, anchor, pointer));
                 if let Some(edge) = target.and_then(|target| edge_between(anchor, target)) {
@@ -287,7 +285,6 @@ impl Canvas {
                 }
                 self.current_mode = Mode::Normal;
             }
-        }
         if matches!(self.current_mode, Mode::Connecting { .. }) && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.current_mode = Mode::Normal;
         }
@@ -378,18 +375,16 @@ impl Canvas {
             let mut color = Color32::GRAY;
             match self.current_mode {
                 Mode::EdgeKnife(knife_start) => {
-                    if let Some(knife_end) = ctx.input(|i| i.pointer.latest_pos()) {
-                        if segments_intersect(knife_start, knife_end, from, to) {
+                    if let Some(knife_end) = ctx.input(|i| i.pointer.latest_pos())
+                        && segments_intersect(knife_start, knife_end, from, to) {
                             color = Color32::RED;
                         }
-                    }
                 }
                 Mode::Connecting { .. } => {
-                    if let Some(potential_edge) = potential_edge {
-                        if self.edges_displaced_by(potential_edge).contains(edge) {
+                    if let Some(potential_edge) = potential_edge
+                        && self.edges_displaced_by(potential_edge).contains(edge) {
                             color = Color32::RED;
                         }
-                    }
                 }
                 _ => {}
 
@@ -431,23 +426,19 @@ impl eframe::App for Canvas {
                 self.current_mode = Mode::Normal;
             }
             // Dragging the background pans, shift-dragging cuts edges
-            if bg_response.drag_started() && ctx.input(|i| i.modifiers.shift) {
-                if let Some(pos) = ctx.input(|i| i.pointer.press_origin()) {
+            if bg_response.drag_started() && ctx.input(|i| i.modifiers.shift)
+                && let Some(pos) = ctx.input(|i| i.pointer.press_origin()) {
                     self.current_mode = Mode::EdgeKnife(pos)
                 }
-            }
             if bg_response.dragged() && matches!(self.current_mode, Mode::Normal) {
                 self.pan += bg_response.drag_delta();
             }
             if bg_response.drag_stopped() {
-                match self.current_mode {
-                    Mode::EdgeKnife(start) => {
-                        if let Some(end) = ctx.input(|i| i.pointer.latest_pos()) {
-                            self.pending_cut = Some((start, end));
-                            self.current_mode = Mode::Normal;
-                        }
+                if let Mode::EdgeKnife(start) = self.current_mode {
+                    if let Some(end) = ctx.input(|i| i.pointer.latest_pos()) {
+                        self.pending_cut = Some((start, end));
+                        self.current_mode = Mode::Normal;
                     }
-                    _ => {}
                 }
             }
 

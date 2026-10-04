@@ -96,7 +96,7 @@ impl NodeUi for PhasorParameters {
                     .filter(|line| line.len() >= 2)
                     .map(|line| {
                         let points: Vec<Pos2> = line.iter().map(|p| to_screen * *p).collect();
-                        egui::Shape::line(points, Stroke::new(2.0, Color32::BLACK))
+                        egui::Shape::line(points, Stroke::new(2.0_f32, Color32::BLACK))
                     });
                 painter.extend(shapes);
                 let freq_res = ui.add(egui::Slider::new(&mut self.freq, 0.001..=2000.0).text("frequency").logarithmic(true));

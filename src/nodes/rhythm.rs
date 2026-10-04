@@ -87,7 +87,7 @@ impl NodeUi for RhythmParameters {
             };
             let outline = if response.hovered() { egui::Color32::WHITE } else { egui::Color32::BLACK };
             ui.painter().rect_filled(cell, 2.0, fill);
-            ui.painter().rect_stroke(cell, 2.0, egui::Stroke::new(1.0, outline), egui::StrokeKind::Inside);
+            ui.painter().rect_stroke(cell, 2.0, egui::Stroke::new(1.0_f32, outline), egui::StrokeKind::Inside);
         }
 
         if changed {

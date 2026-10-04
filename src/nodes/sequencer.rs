@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{PortInfo, Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
+use super::{PortInfo, Node, NodeUi, PortDescriptions, drain_messages};
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;

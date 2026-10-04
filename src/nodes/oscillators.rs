@@ -85,7 +85,7 @@ impl NodeUi for OscParameters {
                 if vol_res.changed() {
                     let _ = self.sender.send(OscMessage::Volume(self.target_vol));
                 }
-                let waveform_res = ui.menu_button("waveform", |ui| {
+                let _waveform_res = ui.menu_button("waveform", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
                     if ui.button("Sine").clicked() {
                         self.waveform = Waveform::Sine;

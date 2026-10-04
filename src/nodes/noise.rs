@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{PortInfo, Node, SAMPLERATE, NodeUi, PortDescriptions, drain_messages};
+use super::{PortInfo, Node, NodeUi, PortDescriptions, drain_messages};
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -104,10 +104,7 @@ impl Node for NoiseNode {
             // A possible future solution will have something like PortType rather than
             // portId, but I am concerned that I might want to have one node with duplicate
             // inputs in the future, so I'm not doing that yet
-            match port.0 {
-                0 => vol_buf = Some(buffer),
-                _ => {}
-            }
+            if port.0 == 0 { vol_buf = Some(buffer) }
         }
         for i in 0..output.len() {
             let vol = vol_buf

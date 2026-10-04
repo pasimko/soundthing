@@ -21,9 +21,9 @@ impl WasmAudioProcessor {
     pub fn pack(self) -> usize {
         Box::into_raw(Box::new(self)) as usize
     }
-    pub unsafe fn unpack(val: usize) -> Self {
+    pub unsafe fn unpack(val: usize) -> Self { unsafe {
         *Box::from_raw(val as *mut _)
-    }
+    }}
 }
 
 // This inline JS creates a blob URL for the AudioWorklet processor.
