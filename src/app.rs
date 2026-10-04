@@ -9,7 +9,7 @@ use egui::{
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
 math::MathNode, metronome::MetronomeNode, sequencer::SequencerNode, noise::NoiseNode,
-phasor::PhaseBender, delay::DelayNode, reverb::ReverbNode};
+phasor::PhaseBender, delay::DelayNode, reverb::ReverbNode, rhythm::RhythmNode, pulsewidth::PulsewidthNode, interpolator::InterpolatorNode};
 
 enum Mode {
     Normal,
@@ -475,6 +475,11 @@ impl eframe::App for Canvas {
                         self.add_node(Box::new(new_node), Box::new(node_handler), None);
                         ui.close();
                     }
+                    if ui.button("interpolator").clicked() {
+                        let (new_node, node_handler) = InterpolatorNode::new();
+                        self.add_node(Box::new(new_node), Box::new(node_handler), None);
+                        ui.close();
+                    }
                 });
                 ui.menu_button("controller", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
@@ -496,6 +501,16 @@ impl eframe::App for Canvas {
                     if ui.button("sequencer").clicked() {
                         let (new_osc, new_sequencer_handler) = SequencerNode::new();
                         self.add_node(Box::new(new_osc), Box::new(new_sequencer_handler), None);
+                        ui.close();
+                    }
+                    if ui.button("rhythm").clicked() {
+                        let (new_rhythm, new_rhythm_handler) = RhythmNode::new();
+                        self.add_node(Box::new(new_rhythm), Box::new(new_rhythm_handler), None);
+                        ui.close();
+                    }
+                    if ui.button("pulsewidth").clicked() {
+                        let (new_pulsewidth, new_pulsewidth_handler) = PulsewidthNode::new();
+                        self.add_node(Box::new(new_pulsewidth), Box::new(new_pulsewidth_handler), None);
                         ui.close();
                     }
                 });

@@ -18,13 +18,16 @@ use crate::nodes::{
 // pub mod timer;
 pub mod adsr;
 pub mod delay;
+pub mod interpolator;
 pub mod math;
 pub mod metronome;
 pub mod noise;
 pub mod oscillators;
 pub mod output;
 pub mod phasor;
+pub mod pulsewidth;
 pub mod reverb;
+pub mod rhythm;
 pub mod sequencer;
 // pub mod harmonics;
 
