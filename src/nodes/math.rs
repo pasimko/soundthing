@@ -11,6 +11,7 @@ pub enum Operation {
     Add,
     Mul,
     Exp,
+    Div,
 }
 
 pub enum MathMessage {
@@ -74,6 +75,7 @@ impl NodeUi for MathParameters {
                 math::Operation::Add => "+",
                 math::Operation::Mul => "*",
                 math::Operation::Exp => "^",
+                math::Operation::Div => "/",
             };
             ui.vertical(|ui| {
                 let a_res = ui.add_enabled(true, operand(&mut self.a));
@@ -90,6 +92,10 @@ impl NodeUi for MathParameters {
                     if ui.button("^").clicked() {
                         self.operation = math::Operation::Exp;
                         let _ = self.sender.send(MathMessage::Operation(math::Operation::Exp));
+                    }
+                    if ui.button("/").clicked() {
+                        self.operation = math::Operation::Div;
+                        let _ = self.sender.send(MathMessage::Operation(math::Operation::Div));
                     }
                 });
                 let b_res = ui.add_enabled(true, operand(&mut self.b));
@@ -169,6 +175,9 @@ impl Node for MathNode {
                 },
                 Operation::Exp => {
                     output[i] = a.powf(b);
+                },
+                Operation::Div => {
+                    output[i] = a / b;
                 },
             }
         }
