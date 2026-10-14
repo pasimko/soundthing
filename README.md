@@ -1,6 +1,6 @@
 # audio graph thing
 
-Puredata inspired web daw. I've never used puredata.
+https://github.com/user-attachments/assets/0bf1ca7f-d880-49db-9e42-49716771850d
 
 ## TODO
 
