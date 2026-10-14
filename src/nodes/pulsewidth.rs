@@ -164,7 +164,7 @@ mod tests {
     fn holds_for_the_width_in_seconds() {
         let (mut node, _) = PulsewidthNode::new(); // 0.1 s
         let out = run(&mut node, &one_pulse_then_silence(10_000), None);
-        let high: Vec<usize> = out.iter().enumerate().filter(|(_, &x)| x == 1.0).map(|(i, _)| i).collect();
+        let high: Vec<usize> = out.iter().enumerate().filter(|(_, x)| **x == 1.0).map(|(i, _)| i).collect();
         assert_eq!(high.len(), 4800);
         assert_eq!((high[0], *high.last().unwrap()), (10, 10 + 4799));
         assert!(out.iter().all(|&x| x == 0.0 || x == 1.0));

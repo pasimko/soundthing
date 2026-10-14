@@ -18,6 +18,7 @@ use crate::nodes::{
 // pub mod timer;
 pub mod adsr;
 pub mod delay;
+pub mod filter;
 pub mod interpolator;
 pub mod math;
 pub mod metronome;

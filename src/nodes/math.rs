@@ -37,6 +37,15 @@ impl MathParameters {
     }
 }
 
+/// egui's DragValue rounds what it displays, and what a drag produces, to a number of decimals
+/// derived from its drag speed (the default speed of 1 means whole numbers). Typed values are kept
+/// as typed. A small speed gives finer drags, `max_decimals` lets ratios like 4/3 display fully.
+fn operand(value: &mut f32) -> egui::DragValue<'_> {
+    egui::DragValue::new(value)
+        .speed(0.01) // hold shift while dragging for a tenth of this
+        .max_decimals(8)
+}
+
 impl NodeUi for MathParameters {
     fn duplicate(&self) -> Option<(Box<dyn Node>, Box<dyn NodeUi>)> {
         let (node, params) = MathNode::from_params(self.clone());
@@ -67,7 +76,7 @@ impl NodeUi for MathParameters {
                 math::Operation::Exp => "^",
             };
             ui.vertical(|ui| {
-                let a_res = ui.add_enabled(true, egui::DragValue::new(&mut self.a));
+                let a_res = ui.add_enabled(true, operand(&mut self.a));
                 ui.menu_button(op, |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
                     if ui.button("+").clicked() {
@@ -83,7 +92,7 @@ impl NodeUi for MathParameters {
                         let _ = self.sender.send(MathMessage::Operation(math::Operation::Exp));
                     }
                 });
-                let b_res = ui.add_enabled(true, egui::DragValue::new(&mut self.b));
+                let b_res = ui.add_enabled(true, operand(&mut self.b));
                 if a_res.changed() {
                     let _ = self.sender.send(MathMessage::SetA(self.a));
                 }

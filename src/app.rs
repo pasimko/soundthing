@@ -9,7 +9,7 @@ use egui::{
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
 math::MathNode, metronome::MetronomeNode, sequencer::SequencerNode, noise::NoiseNode,
-phasor::PhaseBender, delay::DelayNode, reverb::ReverbNode, rhythm::RhythmNode, pulsewidth::PulsewidthNode, interpolator::InterpolatorNode};
+phasor::PhaseBender, delay::DelayNode, reverb::ReverbNode, rhythm::RhythmNode, pulsewidth::PulsewidthNode, interpolator::InterpolatorNode, filter::FilterNode};
 
 enum Mode {
     Normal,
@@ -514,6 +514,11 @@ impl eframe::App for Canvas {
                     if ui.button("reverb").clicked() {
                         let (new_reverb, new_reverb_handler) = ReverbNode::new();
                         self.add_node(Box::new(new_reverb), Box::new(new_reverb_handler), None);
+                        ui.close();
+                    }
+                    if ui.button("filter").clicked() {
+                        let (new_filter, new_filter_handler) = FilterNode::new();
+                        self.add_node(Box::new(new_filter), Box::new(new_filter_handler), None);
                         ui.close();
                     }
                 });
