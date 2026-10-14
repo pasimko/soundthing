@@ -1,6 +1,8 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{PortInfo, Node, NodeUi, PortDescriptions, drain_messages};
+use super::{PortInfo, Node, NodeUi, PortDescriptions, drain_messages, ACTIVITY_REPAINT_SECS};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -17,6 +19,8 @@ pub enum SequencerMessage {
 pub struct SequencerParameters {
     pub sequence: Vec<f32>,
     pub sender: Sender<SequencerMessage>,
+    // The step the audio side is on, for the UI to highlight
+    pub active: Arc<AtomicUsize>,
 }
 
 impl SequencerParameters {
@@ -61,9 +65,24 @@ impl NodeUi for SequencerParameters {
             }
         });
 
+        let active = self.active.load(Ordering::Relaxed);
+        ui.ctx().request_repaint_after_secs(ACTIVITY_REPAINT_SECS);
+
         egui::Grid::new(ui.id().with("values")).show(ui, |ui| {
             for (i, val) in self.sequence.iter_mut().enumerate() {
-                if ui.add(egui::DragValue::new(val)).changed() {
+                // every value gets the frame, so the layout doesn't shift as the highlight moves
+                let fill = if i == active {
+                    ui.visuals().selection.bg_fill
+                } else {
+                    egui::Color32::TRANSPARENT
+                };
+                let value = egui::Frame::new()
+                    .fill(fill)
+                    .corner_radius(3.0)
+                    .inner_margin(2.0)
+                    .show(ui, |ui| ui.add(egui::DragValue::new(val)))
+                    .inner;
+                if value.changed() {
                     changed = true;
                 }
                 if i % COLUMNS == COLUMNS - 1 {
@@ -90,6 +109,7 @@ impl SequencerNode {
         let params = SequencerParameters {
             sequence: vec![220., 275., 220.-55., 330.],
             sender: msg_sender,
+            active: Arc::new(AtomicUsize::new(0)),
         };
         Self::build(params, msg_receiver)
     }
@@ -97,6 +117,8 @@ impl SequencerNode {
     pub fn from_params(mut params: SequencerParameters) -> (Self, SequencerParameters) {
         let (msg_sender, msg_receiver) = channel();
         params.sender = msg_sender;
+        // a copy starts at the first step rather than sharing the original's highlight
+        params.active = Arc::new(AtomicUsize::new(0));
         Self::build(params, msg_receiver)
     }
 
@@ -140,6 +162,7 @@ impl Node for SequencerNode {
                 self.idx = idx;
             }
         }
+        self.params.active.store(self.idx, Ordering::Relaxed);
 
         for i in 0..output.len() {
             let seq_idx = idx_buf
@@ -211,6 +234,27 @@ mod tests {
         let mut n = node(vec![1., 2., 3.]);
         let out = run(&mut n, &[f32::MAX, f32::INFINITY, 1e30, 1.0]);
         assert!(out.iter().all(|x| [1., 2., 3.].contains(x)));
+    }
+
+    #[test]
+    fn reports_the_active_step() {
+        let (mut n, params) = SequencerNode::new(); // four values
+        assert_eq!(params.active.load(Ordering::Relaxed), 0);
+        run(&mut n, &[1.0, 0.0, 1.0]);
+        assert_eq!(params.active.load(Ordering::Relaxed), 2);
+        run(&mut n, &[1.0, 1.0, 1.0]); // wraps: 5 % 4
+        assert_eq!(params.active.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn a_duplicate_reports_its_own_step() {
+        let (mut n, params) = SequencerNode::new();
+        run(&mut n, &[1.0]);
+        let (mut copy, copy_params) = SequencerNode::from_params(params.clone());
+        assert_eq!(copy_params.active.load(Ordering::Relaxed), 0);
+        run(&mut copy, &[1.0, 1.0]);
+        assert_eq!(copy_params.active.load(Ordering::Relaxed), 2);
+        assert_eq!(params.active.load(Ordering::Relaxed), 1);
     }
 
     #[test]

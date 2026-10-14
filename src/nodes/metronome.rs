@@ -1,7 +1,9 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::PortDescriptions;
 use crate::nodes::graph::PortId;
-use super::{PortInfo, Node, SAMPLERATE, NodeUi, drain_messages};
+use super::{PortInfo, Node, SAMPLERATE, NodeUi, drain_messages, ACTIVITY_REPAINT_SECS};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -17,6 +19,9 @@ pub enum Operation {
 const NOTE_BEATS: [f64; 5] = [4.0, 2.0, 1.0, 0.5, 0.25];
 // The longest note; the beat counter wraps here so all outputs stay aligned.
 const BAR_BEATS: f64 = 4.0;
+// The output the beat light follows: the quarter note
+const BEAT_OUTPUT: usize = 2;
+const FLASH_SECS: f64 = 0.15;
 
 pub enum MetronomeMessage {
     Bpm(f32),
@@ -26,6 +31,10 @@ pub enum MetronomeMessage {
 pub struct MetronomeParameters {
     pub bpm: f32,
     pub sender: Sender<MetronomeMessage>,
+    // Beats counted by the audio side. The UI flashes whenever it changes.
+    pub beats: Arc<AtomicU32>,
+    last_beat: u32,
+    flash_started: f64,
 }
 
 impl MetronomeParameters {
@@ -62,6 +71,15 @@ impl NodeUi for MetronomeParameters {
     }
 
     fn draw(&mut self, ui: &mut egui::Ui) {
+        let now = ui.input(|i| i.time);
+        let beats = self.beats.load(Ordering::Relaxed);
+        if beats != self.last_beat {
+            self.last_beat = beats;
+            self.flash_started = now;
+        }
+        let flash = (1.0 - (now - self.flash_started) / FLASH_SECS).clamp(0.0, 1.0) as f32;
+        ui.ctx().request_repaint_after_secs(ACTIVITY_REPAINT_SECS);
+
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(100.0);
@@ -74,6 +92,13 @@ impl NodeUi for MetronomeParameters {
                     let _ = self.sender.send(MetronomeMessage::Bpm(self.bpm));
                 }
             });
+            let (light, _) = ui.allocate_exact_size(egui::Vec2::splat(24.0), egui::Sense::hover());
+            ui.painter().circle(
+                light.center(),
+                10.0,
+                ui.visuals().selection.bg_fill.gamma_multiply(flash),
+                egui::Stroke::new(1.5_f32, ui.visuals().text_color()),
+            );
         });
     }
 }
@@ -91,6 +116,9 @@ impl MetronomeNode {
         let params = MetronomeParameters {
             bpm: 120.0,
             sender: msg_sender,
+            beats: Arc::new(AtomicU32::new(0)),
+            last_beat: 0,
+            flash_started: f64::NEG_INFINITY,
         };
         Self::build(params, msg_receiver)
     }
@@ -98,6 +126,10 @@ impl MetronomeNode {
     pub fn from_params(mut params: MetronomeParameters) -> (Self, MetronomeParameters) {
         let (msg_sender, msg_receiver) = channel();
         params.sender = msg_sender;
+        // a copy keeps its own beat count rather than flashing along with the original
+        params.beats = Arc::new(AtomicU32::new(0));
+        params.last_beat = 0;
+        params.flash_started = f64::NEG_INFINITY;
         Self::build(params, msg_receiver)
     }
 
@@ -124,6 +156,7 @@ impl Node for MetronomeNode {
             // FRAGILE: These have to match the order the ports are declared in the UI
             if port.0 == 0 { bpm_buf = Some(buffer) }
         }
+        let mut beats = 0;
         for i in 0..outputs[0].len() {
             let bpm = bpm_buf
                 .map(|b| b[i])
@@ -138,6 +171,41 @@ impl Node for MetronomeNode {
                 output[i] = if (after / note).floor() > (before / note).floor() { 1.0 } else { 0.0 };
             }
             self.beats = after.rem_euclid(BAR_BEATS);
+            if outputs[BEAT_OUTPUT][i] == 1.0 {
+                beats += 1;
+            }
         }
+        if beats > 0 {
+            self.params.beats.fetch_add(beats, Ordering::Relaxed);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run(node: &mut MetronomeNode, samples: usize) {
+        let mut outputs = vec![vec![0.; samples]; NOTE_BEATS.len()];
+        node.process(&[], &mut outputs);
+    }
+
+    #[test]
+    fn counts_one_beat_per_quarter_note_pulse() {
+        // 120 bpm is two beats a second
+        let (mut node, params) = MetronomeNode::new();
+        run(&mut node, SAMPLERATE + 100);
+        assert_eq!(params.beats.load(Ordering::Relaxed), 2);
+        run(&mut node, SAMPLERATE);
+        assert_eq!(params.beats.load(Ordering::Relaxed), 4);
+    }
+
+    #[test]
+    fn a_duplicate_counts_separately() {
+        let (_, params) = MetronomeNode::new();
+        let (mut copy, copy_params) = MetronomeNode::from_params(params.clone());
+        run(&mut copy, SAMPLERATE + 100);
+        assert_eq!(params.beats.load(Ordering::Relaxed), 0);
+        assert_eq!(copy_params.beats.load(Ordering::Relaxed), 2);
     }
 }

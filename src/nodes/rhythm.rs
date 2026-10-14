@@ -1,6 +1,8 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{PortInfo, Node, NodeUi, PortDescriptions, drain_messages};
+use super::{PortInfo, Node, NodeUi, PortDescriptions, drain_messages, ACTIVITY_REPAINT_SECS};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -8,6 +10,9 @@ use std::sync::mpsc::Receiver;
 // Steps are read left to right, then top to bottom, so each row is one bar of four beats
 const COLUMNS: usize = 4;
 const MAX_ROWS: usize = 16;
+
+// `played` before any step has played
+const NOT_PLAYED: usize = usize::MAX;
 
 const CELL_SIZE: f32 = 22.0;
 const CELL_GAP: f32 = 4.0;
@@ -20,6 +25,8 @@ pub enum RhythmMessage {
 pub struct RhythmParameters {
     pub steps: Vec<bool>,
     pub sender: Sender<RhythmMessage>,
+    // The step the audio side played last, for the UI to highlight
+    pub played: Arc<AtomicUsize>,
 }
 
 impl RhythmParameters {
@@ -69,6 +76,8 @@ impl NodeUi for RhythmParameters {
             rows as f32 * (CELL_SIZE + CELL_GAP) - CELL_GAP,
         );
         let (grid, _) = ui.allocate_exact_size(grid_size, egui::Sense::hover());
+        let played = self.played.load(Ordering::Relaxed);
+        ui.ctx().request_repaint_after_secs(ACTIVITY_REPAINT_SECS);
         for (i, step) in self.steps.iter_mut().enumerate() {
             let (row, column) = (i / COLUMNS, i % COLUMNS);
             let cell = egui::Rect::from_min_size(
@@ -88,6 +97,14 @@ impl NodeUi for RhythmParameters {
             let outline = if response.hovered() { egui::Color32::WHITE } else { egui::Color32::BLACK };
             ui.painter().rect_filled(cell, 2.0, fill);
             ui.painter().rect_stroke(cell, 2.0, egui::Stroke::new(1.0_f32, outline), egui::StrokeKind::Inside);
+            if i == played {
+                ui.painter().rect_stroke(
+                    cell,
+                    2.0,
+                    egui::Stroke::new(3.0_f32, ui.visuals().selection.bg_fill),
+                    egui::StrokeKind::Inside,
+                );
+            }
         }
 
         if changed {
@@ -109,6 +126,7 @@ impl RhythmNode {
         let params = RhythmParameters {
             steps: [true, false, false, false].repeat(2),
             sender: msg_sender,
+            played: Arc::new(AtomicUsize::new(NOT_PLAYED)),
         };
         Self::build(params, msg_receiver)
     }
@@ -116,6 +134,8 @@ impl RhythmNode {
     pub fn from_params(mut params: RhythmParameters) -> (Self, RhythmParameters) {
         let (msg_sender, msg_receiver) = channel();
         params.sender = msg_sender;
+        // a copy hasn't played anything yet, whatever the original has
+        params.played = Arc::new(AtomicUsize::new(NOT_PLAYED));
         Self::build(params, msg_receiver)
     }
 
@@ -140,6 +160,7 @@ impl Node for RhythmNode {
             // FRAGILE: These have to match the order the ports are declared in the UI
             if port.0 == 0 { trigger_buf = Some(buffer) }
         }
+        let mut last_played = None;
         for i in 0..output.len() {
             let trigger = trigger_buf
                 .map(|b| b[i])
@@ -153,12 +174,16 @@ impl Node for RhythmNode {
             if high && !self.trigger_high && steps > 0 {
                 // the pattern may have shrunk since the last trigger
                 self.active %= steps;
+                last_played = Some(self.active);
                 if self.params.steps[self.active] {
                     output[i] = 1.0;
                 }
                 self.active = (self.active + 1) % steps;
             }
             self.trigger_high = high;
+        }
+        if let Some(step) = last_played {
+            self.params.played.store(step, Ordering::Relaxed);
         }
     }
 }
@@ -225,6 +250,28 @@ mod tests {
         assert!(out.iter().filter(|&&x| x == 1.0).count() <= 3);
         node.params.steps = vec![];
         assert!(run(&mut node, &pulses(3)).iter().all(|&x| x == 0.0));
+    }
+
+    #[test]
+    fn reports_the_last_played_step() {
+        let (mut node, params) = RhythmNode::new(); // eight steps
+        assert_eq!(params.played.load(Ordering::Relaxed), NOT_PLAYED);
+        run(&mut node, &pulses(3)); // plays steps 0, 1, 2
+        assert_eq!(params.played.load(Ordering::Relaxed), 2);
+        run(&mut node, &pulses(7)); // 3 to 7, then wraps to 0 and 1
+        assert_eq!(params.played.load(Ordering::Relaxed), 1);
+        // a block with no trigger leaves it alone
+        run(&mut node, &[0.0; 10]);
+        assert_eq!(params.played.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn a_duplicate_has_played_nothing_yet() {
+        let (mut node, params) = RhythmNode::new();
+        run(&mut node, &pulses(3));
+        let (_, copy_params) = RhythmNode::from_params(params.clone());
+        assert_eq!(copy_params.played.load(Ordering::Relaxed), NOT_PLAYED);
+        assert_eq!(params.played.load(Ordering::Relaxed), 2);
     }
 
     #[test]

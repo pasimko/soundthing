@@ -57,9 +57,8 @@ impl AudioGraph {
         // topologically sort nodes
         let mut visited : Vec<bool> = vec![false; self.nodes.len()];
         let mut top_sorted = Vec::new();
-        while let Some(idx) = visited.iter().position(|i| !i) {
-            self.visit(idx, &mut visited, &mut top_sorted);
-        }
+        // process from output onwards
+        self.visit(0, &mut visited, &mut top_sorted);
 
         for node_idx in top_sorted.iter().cloned() {
             let mut sources: Vec<(PortId, &[f32])> = Vec::new();

@@ -38,6 +38,10 @@ pub mod graph;
 // pub const SAMPLESIZE: usize = 0x100;
 pub const SAMPLERATE: usize = 48_000;
 
+/// Nodes that show what the audio side is doing poll at this rate, since the audio thread
+/// can't wake egui itself.
+pub const ACTIVITY_REPAINT_SECS: f32 = 1.0 / 30.0;
+
 pub trait Node {
     /// How many output ports the node has; `process` is given one buffer for each.
     fn output_count(&self) -> usize {
