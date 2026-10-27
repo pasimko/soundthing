@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{PortInfo, Node, NodeUi, PortDescriptions, drain_messages, ACTIVITY_REPAINT_SECS};
+use super::{PortInfo, Node, NodeUi, PortDescriptions, drain_messages, wrap_index, ACTIVITY_REPAINT_SECS};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -51,9 +51,10 @@ impl NodeUi for RhythmParameters {
         PortDescriptions::with_ports(
             vec![
                 PortInfo::input("trigger", "Each time this goes from zero to nonzero, the node plays its current step and moves on to the next."),
+                PortInfo::input("index", "Plays the step at this index instead, counting from 0 and wrapping around the ends: each time the index moves onto a checked step, the output pulses. While connected, it takes over from the trigger."),
             ],
             vec![
-                PortInfo::output("pulse out", "1 for a single sample if the step just played is checked, otherwise 0."),
+                PortInfo::output("pulse out", "1 for a single sample whenever a checked step is played, otherwise 0."),
             ]
         )
     }
@@ -117,6 +118,7 @@ pub struct RhythmNode {
     params: RhythmParameters,
     active: usize, // the step the next trigger plays
     trigger_high: bool, // was the trigger nonzero on the previous sample?
+    last_index: Option<usize>, // the step the index input was on, while it's connected
     msg_receiver: Receiver<RhythmMessage>,
 }
 
@@ -145,6 +147,7 @@ impl RhythmNode {
             params,
             active: 0,
             trigger_high: false,
+            last_index: None,
             msg_receiver,
         }, handler)
     }
@@ -156,9 +159,18 @@ impl Node for RhythmNode {
         drain_messages(&self.msg_receiver, |msg| self.params.handle_message(msg));
         // If we have inputs, use these buffers
         let mut trigger_buf = None;
+        let mut index_buf = None;
         for (port, buffer) in inputs {
             // FRAGILE: These have to match the order the ports are declared in the UI
-            if port.0 == 0 { trigger_buf = Some(buffer) }
+            match port.0 {
+                0 => trigger_buf = Some(buffer),
+                1 => index_buf = Some(buffer),
+                _ => {}
+            }
+        }
+        if index_buf.is_none() {
+            // so plugging it back in counts as moving onto a step
+            self.last_index = None;
         }
         let mut last_played = None;
         for i in 0..output.len() {
@@ -169,18 +181,40 @@ impl Node for RhythmNode {
             // Only the sample where the trigger goes nonzero counts, so a trigger held high
             // (or stretched by a pulsewidth node) plays one step rather than racing through them
             let high = trigger.abs() > 0.0;
-            output[i] = 0.0;
+            let mut pulse = 0.0;
             let steps = self.params.steps.len();
             if high && !self.trigger_high && steps > 0 {
                 // the pattern may have shrunk since the last trigger
                 self.active %= steps;
-                last_played = Some(self.active);
-                if self.params.steps[self.active] {
-                    output[i] = 1.0;
+                // The triggers keep stepping while the index is connected, so unplugging it
+                // picks up wherever they got to, but the index takes over the output
+                if index_buf.is_none() {
+                    last_played = Some(self.active);
+                    if self.params.steps[self.active] {
+                        pulse = 1.0;
+                    }
                 }
                 self.active = (self.active + 1) % steps;
             }
             self.trigger_high = high;
+
+            if let Some(b) = index_buf {
+                if steps > 0 {
+                    let index = wrap_index(b[i], steps);
+                    // Pulsing on arrival rather than holding a level, so back-to-back checked
+                    // steps are separate hits
+                    if self.last_index != Some(index) {
+                        self.last_index = Some(index);
+                        if self.params.steps[index] {
+                            pulse = 1.0;
+                        }
+                    }
+                    last_played = Some(index);
+                } else {
+                    self.last_index = None;
+                }
+            }
+            output[i] = pulse;
         }
         if let Some(step) = last_played {
             self.params.played.store(step, Ordering::Relaxed);
@@ -272,6 +306,81 @@ mod tests {
         let (_, copy_params) = RhythmNode::from_params(params.clone());
         assert_eq!(copy_params.played.load(Ordering::Relaxed), NOT_PLAYED);
         assert_eq!(params.played.load(Ordering::Relaxed), 2);
+    }
+
+    fn run_indexed(node: &mut RhythmNode, trigger: Option<&[f32]>, index: &[f32]) -> Vec<f32> {
+        let mut outputs = [vec![0.; index.len()]];
+        match trigger {
+            Some(t) => node.process(&[(PortId(0), t), (PortId(1), index)], &mut outputs),
+            None => node.process(&[(PortId(1), index)], &mut outputs),
+        }
+        let [out] = outputs;
+        out
+    }
+
+    #[test]
+    fn the_index_pulses_on_arriving_at_a_checked_step() {
+        let (mut node, _) = RhythmNode::new();
+        node.params.steps = vec![true, false, true, true, false];
+        let out = run_indexed(&mut node, None, &[0., 0., 0., 1., 2., 2., 3., 4., 0.]);
+        // the held index doesn't repeat, an unchecked step is silent, and 2 then 3 are two hits
+        assert_eq!(out, vec![1., 0., 0., 0., 1., 0., 1., 0., 1.]);
+    }
+
+    #[test]
+    fn the_index_wraps_rounds_down_and_survives_nonsense() {
+        let (mut node, _) = RhythmNode::new();
+        node.params.steps = vec![true, false, false, true];
+        // 4 -> 0 (checked), 5 -> 1, -1 -> 3 (checked), -4 -> 0 (checked), 1.9 -> 1, NaN -> 0
+        let out = run_indexed(&mut node, None, &[4., 5., -1., -4., 1.9, f32::NAN, f32::MAX, f32::INFINITY, f32::NEG_INFINITY]);
+        assert_eq!(&out[..6], &[1., 0., 1., 1., 0., 1.]);
+        assert!(out.iter().all(|&x| x == 0.0 || x == 1.0));
+    }
+
+    #[test]
+    fn the_index_position_carries_across_blocks() {
+        let (mut node, _) = RhythmNode::new();
+        node.params.steps = vec![true, true];
+        assert_eq!(run_indexed(&mut node, None, &[0.]), vec![1.]);
+        // still on step 0: not a new arrival, even in a new block
+        assert_eq!(run_indexed(&mut node, None, &[0., 0.]), vec![0., 0.]);
+        assert_eq!(run_indexed(&mut node, None, &[1.]), vec![1.]);
+    }
+
+    #[test]
+    fn plugging_the_index_back_in_counts_as_arriving() {
+        let (mut node, _) = RhythmNode::new();
+        node.params.steps = vec![true, false];
+        assert_eq!(run_indexed(&mut node, None, &[0.]), vec![1.]);
+        run(&mut node, &[0.0, 0.0]); // index unplugged for a block
+        assert_eq!(run_indexed(&mut node, None, &[0.]), vec![1.]);
+    }
+
+    #[test]
+    fn the_index_takes_over_from_the_triggers_and_they_resume_when_it_goes() {
+        let (mut node, _) = RhythmNode::new();
+        node.params.steps = vec![false, true, true, false];
+        // two triggers would play steps 0 and 1 (one pulse), but the index sits on step 3
+        let out = run_indexed(&mut node, Some(&[1., 0., 1., 0.]), &[3.; 4]);
+        assert_eq!(out, vec![0.; 4]);
+        // the triggers' position, step 2, is back
+        assert_eq!(run(&mut node, &[1.0]), vec![1.]);
+    }
+
+    #[test]
+    fn the_highlight_follows_the_index_even_on_unchecked_steps() {
+        let (mut node, params) = RhythmNode::new(); // eight steps, only the first of each four checked
+        run_indexed(&mut node, None, &[0., 1., 6.]);
+        assert_eq!(params.played.load(Ordering::Relaxed), 6);
+    }
+
+    #[test]
+    fn an_index_into_an_empty_or_shrunk_pattern_is_safe() {
+        let (mut node, _) = RhythmNode::new();
+        node.params.steps = vec![];
+        assert!(run_indexed(&mut node, None, &[0., 1., -3.]).iter().all(|&x| x == 0.0));
+        node.params.steps = vec![true];
+        assert_eq!(run_indexed(&mut node, None, &[0., 3., -2.]), vec![1., 0., 0.]);
     }
 
     #[test]

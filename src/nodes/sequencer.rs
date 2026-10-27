@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::nodes::graph::PortId;
-use super::{PortInfo, Node, NodeUi, PortDescriptions, drain_messages, ACTIVITY_REPAINT_SECS};
+use super::{PortInfo, Node, NodeUi, PortDescriptions, drain_messages, wrap_index, ACTIVITY_REPAINT_SECS};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -45,6 +45,7 @@ impl NodeUi for SequencerParameters {
         PortDescriptions::with_ports(
             vec![
                 PortInfo::input("trigger pulse", "Each pulse advances the sequence by one step."),
+                PortInfo::input("index", "Outputs the value at this index instead, counting from 0 and wrapping around the ends. While connected, it takes over from the trigger pulses."),
             ],
             vec![
                 PortInfo::output("signal out", "The value of the current step."),
@@ -146,32 +147,42 @@ impl Node for SequencerNode {
         self.idx %= seq_len;
 
         let mut idx_buf: Option<Vec<usize>> = None;
+        let mut index_buf = None;
 
         for (port, buffer) in inputs {
-            if port.0 == 0 {
-                let mut idx = self.idx;
-                idx_buf = Some(
-                    buffer.iter()
-                    // saturating, since a huge trigger value would overflow the addition
-                    .map(|&trigger| {
-                        idx = idx.saturating_add(trigger as usize) % seq_len;
-                        idx
-                    })
-                    .collect()
-                );
-                self.idx = idx;
+            match port.0 {
+                0 => {
+                    let mut idx = self.idx;
+                    idx_buf = Some(
+                        buffer.iter()
+                        // saturating, since a huge trigger value would overflow the addition
+                        .map(|&trigger| {
+                            idx = idx.saturating_add(trigger as usize) % seq_len;
+                            idx
+                        })
+                        .collect()
+                    );
+                    self.idx = idx;
+                }
+                1 => index_buf = Some(buffer),
+                _ => {}
             }
         }
-        self.params.active.store(self.idx, Ordering::Relaxed);
 
+        // The index input overrides the output, but the triggers keep stepping underneath, so
+        // unplugging it picks up wherever they got to
+        let mut playing = self.idx;
         for i in 0..output.len() {
-            let seq_idx = idx_buf
-                .as_ref()
-                .map(|b| b[i])
-                .unwrap_or(self.idx);
-
-            output[i] = self.params.sequence[seq_idx];
+            playing = match index_buf {
+                Some(b) => wrap_index(b[i], seq_len),
+                None => idx_buf
+                    .as_ref()
+                    .map(|b| b[i])
+                    .unwrap_or(self.idx),
+            };
+            output[i] = self.params.sequence[playing];
         }
+        self.params.active.store(playing, Ordering::Relaxed);
     }
 }
 
@@ -255,6 +266,63 @@ mod tests {
         run(&mut copy, &[1.0, 1.0]);
         assert_eq!(copy_params.active.load(Ordering::Relaxed), 2);
         assert_eq!(params.active.load(Ordering::Relaxed), 1);
+    }
+
+    fn run_indexed(node: &mut SequencerNode, trigger: Option<&[f32]>, index: &[f32]) -> Vec<f32> {
+        let mut outputs = [vec![0.; index.len()]];
+        match trigger {
+            Some(t) => node.process(&[(PortId(0), t), (PortId(1), index)], &mut outputs),
+            None => node.process(&[(PortId(1), index)], &mut outputs),
+        }
+        let [out] = outputs;
+        out
+    }
+
+    #[test]
+    fn the_index_port_outputs_the_value_at_that_index() {
+        let mut n = node(vec![10., 20., 30., 40.]);
+        assert_eq!(run_indexed(&mut n, None, &[0., 3., 1., 2., 2.]), vec![10., 40., 20., 30., 30.]);
+    }
+
+    #[test]
+    fn the_index_wraps_rounds_down_and_survives_nonsense() {
+        let mut n = node(vec![10., 20., 30., 40.]);
+        let out = run_indexed(&mut n, None, &[4., 5., 9., -1., -4., -5., 1.9, -0.5, f32::NAN, f32::MAX, f32::INFINITY, f32::NEG_INFINITY]);
+        assert_eq!(&out[..8], &[10., 20., 20., 40., 10., 40., 20., 40.]);
+        assert!(out[8..].iter().all(|x| [10., 20., 30., 40.].contains(x)));
+        assert_eq!(out[8], 10.); // NaN
+    }
+
+    #[test]
+    fn the_index_takes_over_from_the_triggers_and_they_resume_when_it_goes() {
+        let mut n = node(vec![10., 20., 30., 40.]);
+        // two triggers step to 2, but the index says 3
+        let out = run_indexed(&mut n, Some(&[1., 0., 1., 0.]), &[3.; 4]);
+        assert_eq!(out, vec![40.; 4]);
+        // index unplugged: the triggers' position, 2, is back
+        assert_eq!(run(&mut n, &[0.0]), vec![30.]);
+    }
+
+    #[test]
+    fn the_index_can_change_every_sample() {
+        let mut n = node(vec![1., 2., 3.]);
+        let index: Vec<f32> = (0..9).map(|i| (i % 3) as f32).collect();
+        assert_eq!(run_indexed(&mut n, None, &index), vec![1., 2., 3., 1., 2., 3., 1., 2., 3.]);
+    }
+
+    #[test]
+    fn the_highlight_follows_the_index() {
+        let (mut n, params) = SequencerNode::new(); // four values
+        run_indexed(&mut n, None, &[0., 2., 7.]); // 7 wraps to 3
+        assert_eq!(params.active.load(Ordering::Relaxed), 3);
+    }
+
+    #[test]
+    fn an_index_into_an_empty_or_shrunk_sequence_is_safe() {
+        let mut n = node(vec![]);
+        assert!(run_indexed(&mut n, None, &[0., 1.]).iter().all(|&x| x == 0.0));
+        n.params.sequence = vec![5.];
+        assert_eq!(run_indexed(&mut n, None, &[0., 3., -2.]), vec![5., 5., 5.]);
     }
 
     #[test]

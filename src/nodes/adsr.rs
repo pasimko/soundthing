@@ -53,6 +53,64 @@ fn pole(ratio: f32, seconds: f32) -> f32 {
     ratio.powf(1.0 / (seconds * SAMPLERATE as f32).max(1.0))
 }
 
+// What each segment looks like, as a function of how far through it we are (0 to 1). These are
+// the closed forms of what `AdsrNode::step` does sample by sample, and are what the graph draws.
+fn attack_level(progress: f32) -> f32 {
+    (1. + CURVE) * (1. - (CURVE / (1. + CURVE)).powf(progress))
+}
+
+fn decay_level(progress: f32, sustain: f32) -> f32 {
+    let aim = sustain - CURVE;
+    aim + (1. - aim) * (CURVE / (1. - sustain + CURVE)).powf(progress)
+}
+
+fn release_level(progress: f32, from: f32) -> f32 {
+    -CURVE + (from + CURVE) * (CURVE / (from + CURVE)).powf(progress)
+}
+
+// The graph gives each time a lane to move in, on the same log scale as the old sliders, so
+// a 2 ms attack and a 10 s release are both easy to grab.
+const GRAPH_SIZE: egui::Vec2 = egui::vec2(220.0, 110.0);
+const GRAPH_MARGIN: f32 = 9.0;
+const TIME_MIN: f32 = 0.001;
+const TIME_MAX: f32 = 10.0;
+// Width of the lanes: attack, decay, release, and half a lane of sustain between them
+const LANES: f32 = 3.5;
+const CURVE_SAMPLES: usize = 24;
+
+fn time_to_lane(seconds: f32) -> f32 {
+    ((seconds.max(TIME_MIN) / TIME_MIN).ln() / (TIME_MAX / TIME_MIN).ln()).clamp(0.0, 1.0)
+}
+
+fn lane_to_time(lane: f32) -> f32 {
+    TIME_MIN * (TIME_MAX / TIME_MIN).powf(lane.clamp(0.0, 1.0))
+}
+
+fn level_to_y(inner: egui::Rect, level: f32) -> f32 {
+    inner.bottom() - level.clamp(0.0, 1.0) * inner.height()
+}
+
+/// Where the envelope's corners sit in the graph.
+struct GraphPoints {
+    start: egui::Pos2,
+    attack: egui::Pos2,
+    decay: egui::Pos2,
+    release_start: egui::Pos2,
+    release: egui::Pos2,
+}
+
+impl AdsrParameters {
+    fn graph_points(&self, inner: egui::Rect) -> GraphPoints {
+        let lane = inner.width() / LANES;
+        let start = egui::pos2(inner.left(), level_to_y(inner, 0.));
+        let attack = egui::pos2(start.x + time_to_lane(self.a) * lane, level_to_y(inner, 1.));
+        let decay = egui::pos2(attack.x + time_to_lane(self.d) * lane, level_to_y(inner, self.s));
+        let release_start = egui::pos2(decay.x + 0.5 * lane, decay.y);
+        let release = egui::pos2(release_start.x + time_to_lane(self.r) * lane, level_to_y(inner, 0.));
+        GraphPoints { start, attack, decay, release_start, release }
+    }
+}
+
 impl NodeUi for AdsrParameters {
     fn duplicate(&self) -> Option<(Box<dyn Node>, Box<dyn NodeUi>)> {
         let (node, params) = AdsrNode::from_params(self.clone());
@@ -68,10 +126,10 @@ impl NodeUi for AdsrParameters {
             vec![
                 PortInfo::input("signal", "The signal the envelope shapes. If nothing is connected, the output is the envelope itself, a 0 to 1 control signal."),
                 PortInfo::input("gate", "Stays above 0 while the note is held: it attacks, decays to the sustain level, then holds. At or below 0 it releases. Overrides the gate button."),
-                PortInfo::input("attack time", "Seconds to rise to full level. Overrides the slider."),
-                PortInfo::input("decay time", "Seconds to fall from full level to the sustain level. Overrides the slider."),
-                PortInfo::input("sustain level", "Level held while the gate stays on, from 0 to 1. Overrides the slider."),
-                PortInfo::input("release time", "Seconds to fall from full level to silence once the gate closes. Overrides the slider."),
+                PortInfo::input("attack time", "Seconds to rise to full level. Overrides the graph."),
+                PortInfo::input("decay time", "Seconds to fall from full level to the sustain level. Overrides the graph."),
+                PortInfo::input("sustain level", "Level held while the gate stays on, from 0 to 1. Overrides the graph."),
+                PortInfo::input("release time", "Seconds to fade to silence once the gate closes, from wherever the level was. Overrides the graph."),
             ],
             vec![
                 PortInfo::output("signal out", "The input signal scaled by the envelope."),
@@ -80,40 +138,110 @@ impl NodeUi for AdsrParameters {
     }
 
     fn draw(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                let a_res = ui.add(egui::Slider::new(&mut self.a, 0.001..=10.0)
-                    .text("attack")
-                    .suffix(" s")
-                    .logarithmic(true));
-                let d_res = ui.add(egui::Slider::new(&mut self.d, 0.001..=10.0)
-                    .text("decay")
-                    .suffix(" s")
-                    .logarithmic(true));
-                let s_res = ui.add(egui::Slider::new(&mut self.s, 0.0..=1.0)
-                    .text("sustain"));
-                let r_res = ui.add(egui::Slider::new(&mut self.r, 0.001..=10.0)
-                    .text("release")
-                    .suffix(" s")
-                    .logarithmic(true));
-                let gate_res = ui.add(egui::Button::new("gate").selected(self.gate));
-                if gate_res.clicked() {
-                    self.gate = !self.gate;
-                    let _ = self.sender.send(AdsrMessage::Gate(self.gate));
-                }
-                if a_res.changed() {
-                    let _ = self.sender.send(AdsrMessage::Attack(self.a));
-                }
-                if d_res.changed() {
-                    let _ = self.sender.send(AdsrMessage::Decay(self.d));
-                }
-                if s_res.changed() {
-                    let _ = self.sender.send(AdsrMessage::Sustain(self.s));
-                }
-                if r_res.changed() {
-                    let _ = self.sender.send(AdsrMessage::Release(self.r));
-                }
+        ui.vertical(|ui| {
+            let (frame, painter) = ui.allocate_painter(GRAPH_SIZE, egui::Sense::hover());
+            let inner = frame.rect.shrink(GRAPH_MARGIN);
+            let lane = inner.width() / LANES;
+
+            // Drag a corner to set its time; the decay corner also sets the sustain level
+            let points = self.graph_points(inner);
+            let handle = |ui: &egui::Ui, name: &str, at: egui::Pos2| ui.interact(
+                egui::Rect::from_center_size(at, egui::Vec2::splat(18.0)),
+                ui.id().with(name),
+                egui::Sense::drag(),
+            );
+            let attack_handle = handle(ui, "attack", points.attack);
+            let decay_handle = handle(ui, "decay", points.decay);
+            let release_handle = handle(ui, "release", points.release);
+
+            let mut changed = [false; 4];
+            if let Some(pointer) = attack_handle.interact_pointer_pos().filter(|_| attack_handle.dragged()) {
+                self.a = lane_to_time((pointer.x - points.start.x) / lane);
+                changed[0] = true;
+            }
+            if let Some(pointer) = decay_handle.interact_pointer_pos().filter(|_| decay_handle.dragged()) {
+                self.d = lane_to_time((pointer.x - points.attack.x) / lane);
+                self.s = ((inner.bottom() - pointer.y) / inner.height()).clamp(0.0, 1.0);
+                changed[1] = true;
+                changed[2] = true;
+            }
+            if let Some(pointer) = release_handle.interact_pointer_pos().filter(|_| release_handle.dragged()) {
+                self.r = lane_to_time((pointer.x - points.release_start.x) / lane);
+                changed[3] = true;
+            }
+
+            // Draw from the updated values, so the corner doesn't lag the pointer by a frame
+            let points = self.graph_points(inner);
+            let visuals = ui.visuals();
+            painter.rect(
+                frame.rect,
+                2.0,
+                visuals.extreme_bg_color,
+                visuals.widgets.noninteractive.bg_stroke,
+                egui::StrokeKind::Inside,
+            );
+            let segment = |from: egui::Pos2, to: egui::Pos2, level: &dyn Fn(f32) -> f32| {
+                (0..=CURVE_SAMPLES).map(move |k| {
+                    let progress = k as f32 / CURVE_SAMPLES as f32;
+                    egui::pos2(
+                        from.x + (to.x - from.x) * progress,
+                        level_to_y(inner, level(progress)),
+                    )
+                }).collect::<Vec<_>>()
+            };
+            let mut curve = segment(points.start, points.attack, &attack_level);
+            curve.extend(segment(points.attack, points.decay, &|p| decay_level(p, self.s)));
+            curve.push(points.release_start);
+            curve.extend(segment(points.release_start, points.release, &|p| release_level(p, self.s)));
+            painter.add(egui::Shape::line(curve, egui::Stroke::new(2.0_f32, visuals.text_color())));
+            for (corner, response) in [
+                (points.attack, &attack_handle),
+                (points.decay, &decay_handle),
+                (points.release, &release_handle),
+            ] {
+                let radius = if response.hovered() || response.dragged() { 7.0 } else { 5.0 };
+                painter.circle(
+                    corner,
+                    radius,
+                    visuals.selection.bg_fill,
+                    egui::Stroke::new(1.5_f32, visuals.text_color()),
+                );
+            }
+
+            // The same four values, for typing in exact ones
+            ui.horizontal_wrapped(|ui| {
+                ui.set_max_width(GRAPH_SIZE.x);
+                let a_res = ui.add(egui::DragValue::new(&mut self.a)
+                    .range(TIME_MIN..=TIME_MAX).speed(0.005).prefix("A ").suffix(" s"));
+                let d_res = ui.add(egui::DragValue::new(&mut self.d)
+                    .range(TIME_MIN..=TIME_MAX).speed(0.005).prefix("D ").suffix(" s"));
+                let s_res = ui.add(egui::DragValue::new(&mut self.s)
+                    .range(0.0..=1.0).speed(0.005).prefix("S "));
+                let r_res = ui.add(egui::DragValue::new(&mut self.r)
+                    .range(TIME_MIN..=TIME_MAX).speed(0.005).prefix("R ").suffix(" s"));
+                changed[0] |= a_res.changed();
+                changed[1] |= d_res.changed();
+                changed[2] |= s_res.changed();
+                changed[3] |= r_res.changed();
             });
+
+            let gate_res = ui.add(egui::Button::new("gate").selected(self.gate));
+            if gate_res.clicked() {
+                self.gate = !self.gate;
+                let _ = self.sender.send(AdsrMessage::Gate(self.gate));
+            }
+            if changed[0] {
+                let _ = self.sender.send(AdsrMessage::Attack(self.a));
+            }
+            if changed[1] {
+                let _ = self.sender.send(AdsrMessage::Decay(self.d));
+            }
+            if changed[2] {
+                let _ = self.sender.send(AdsrMessage::Sustain(self.s));
+            }
+            if changed[3] {
+                let _ = self.sender.send(AdsrMessage::Release(self.r));
+            }
         });
     }
 }
@@ -123,6 +251,7 @@ pub struct AdsrNode {
     state: State,
     gate_high: bool, // was the gate above 0 on the previous sample?
     level: f32, // the envelope's current output, 0 to 1
+    release_from: f32, // the level the gate closed at, which the release fades from
     msg_receiver: Receiver<AdsrMessage>,
 }
 
@@ -154,6 +283,7 @@ impl AdsrNode {
             state: State::Idle,
             gate_high: false,
             level: 0.,
+            release_from: 0.,
         }, handler)
     }
 
@@ -165,6 +295,7 @@ impl AdsrNode {
             self.state = State::Attack;
         } else if !gate_high && matches!(self.state, State::Attack | State::Decay | State::Sustain) {
             self.state = State::Release;
+            self.release_from = self.level;
         }
         self.gate_high = gate_high;
 
@@ -188,8 +319,10 @@ impl AdsrNode {
             },
             // Follows `sustain` so turning the knob (or modulating it) works while held
             State::Sustain => self.level = sustain,
+            // Fades to silence in `release` seconds from wherever the gate closed, so a short note
+            // doesn't get a shorter release than a long one
             State::Release => {
-                let p = pole(CURVE / (1. + CURVE), release);
+                let p = pole(CURVE / (self.release_from + CURVE), release);
                 self.level = p * self.level - (1. - p) * CURVE;
                 if self.level <= 0. {
                     self.level = 0.;
@@ -301,6 +434,96 @@ mod tests {
         let expected = (0.1 * SAMPLERATE as f32) as usize;
         assert!(silent_at.abs_diff(expected) <= 2, "silent at {silent_at}, expected {expected}");
         assert!(out[silent_at..].iter().all(|&x| x == 0.));
+    }
+
+    fn silent_at(out: &[f32]) -> usize {
+        out.iter().position(|&x| x == 0.).unwrap()
+    }
+
+    #[test]
+    fn releases_in_the_release_time_from_any_level() {
+        let expected = (0.1 * SAMPLERATE as f32) as usize;
+
+        // from a sustain level below full
+        let (mut node, _) = AdsrNode::new();
+        run(&mut node, true, 0.5, 0.01, 0.01, 0.3, 0.1);
+        let out = run(&mut node, false, 0.2, 0.01, 0.01, 0.3, 0.1);
+        assert!(silent_at(&out).abs_diff(expected) <= 2, "from sustain: {}", silent_at(&out));
+
+        // from part of the way up a long attack
+        let (mut node, _) = AdsrNode::new();
+        run(&mut node, true, 0.05, 0.5, 0.5, 0.3, 0.1);
+        assert!(node.level > 0.1 && node.level < 0.9);
+        let out = run(&mut node, false, 0.2, 0.5, 0.5, 0.3, 0.1);
+        assert!(silent_at(&out).abs_diff(expected) <= 2, "from mid-attack: {}", silent_at(&out));
+    }
+
+    #[test]
+    fn the_graph_curves_match_what_the_node_does() {
+        let close = |a: f32, b: f32, what: &str| assert!((a - b).abs() < 1e-3, "{what}: {a} vs {b}");
+        let n = (0.1 * SAMPLERATE as f32) as usize;
+        let (mut node, _) = AdsrNode::new();
+
+        for i in 1..n {
+            let level = node.step(true, 0.1, 0.1, 0.4, 0.1);
+            if i % 400 == 0 {
+                close(level, attack_level(i as f32 / n as f32), "attack");
+            }
+        }
+        while !matches!(node.state, State::Decay) {
+            node.step(true, 0.1, 0.1, 0.4, 0.1);
+        }
+        for j in 1..n {
+            let level = node.step(true, 0.1, 0.1, 0.4, 0.1);
+            if j % 400 == 0 {
+                close(level, decay_level(j as f32 / n as f32, 0.4), "decay");
+            }
+        }
+        while !matches!(node.state, State::Sustain) {
+            node.step(true, 0.1, 0.1, 0.4, 0.1);
+        }
+        for j in 1..n {
+            let level = node.step(false, 0.1, 0.1, 0.4, 0.1);
+            if j % 400 == 0 {
+                close(level, release_level(j as f32 / n as f32, 0.4), "release");
+            }
+        }
+    }
+
+    #[test]
+    fn the_curves_start_and_end_where_the_corners_are() {
+        for s in [0.0, 0.3, 1.0] {
+            assert!((attack_level(0.0)).abs() < 1e-6 && (attack_level(1.0) - 1.0).abs() < 1e-6);
+            assert!((decay_level(0.0, s) - 1.0).abs() < 1e-6 && (decay_level(1.0, s) - s).abs() < 1e-6);
+            assert!((release_level(0.0, s) - s).abs() < 1e-6 && release_level(1.0, s).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn lanes_round_trip_times_and_clamp() {
+        for t in [0.001, 0.01, 0.1, 1.0, 10.0] {
+            assert!((lane_to_time(time_to_lane(t)) - t).abs() <= t * 1e-4, "{t}");
+        }
+        assert_eq!(time_to_lane(0.0), 0.0);
+        assert_eq!(time_to_lane(f32::NAN), 0.0);
+        assert_eq!(time_to_lane(1000.0), 1.0);
+        assert_eq!(lane_to_time(-1.0), TIME_MIN);
+        assert_eq!(lane_to_time(2.0), TIME_MAX);
+    }
+
+    #[test]
+    fn the_graph_corners_always_fit_in_the_frame() {
+        let inner = egui::Rect::from_min_size(egui::pos2(9., 9.), egui::vec2(202., 92.));
+        for t in [0.0, 0.001, 1.0, 10.0, 99.0, f32::NAN] {
+            for s in [0.0, 0.5, 1.0, 5.0, -1.0] {
+                let (_, mut params) = AdsrNode::new();
+                (params.a, params.d, params.s, params.r) = (t, t, s, t);
+                let p = params.graph_points(inner);
+                for corner in [p.start, p.attack, p.decay, p.release_start, p.release] {
+                    assert!(inner.expand(0.01).contains(corner), "t {t} s {s}: {corner:?}");
+                }
+            }
+        }
     }
 
     #[test]

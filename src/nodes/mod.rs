@@ -17,11 +17,13 @@ use crate::nodes::{
 
 // pub mod timer;
 pub mod adsr;
+pub mod count;
 pub mod delay;
 pub mod filter;
 pub mod interpolator;
 pub mod math;
 pub mod metronome;
+pub mod mix;
 pub mod noise;
 pub mod oscillators;
 pub mod output;
@@ -37,6 +39,12 @@ pub mod graph;
 // pub const BUFSIZE: usize = 0x1000;
 // pub const SAMPLESIZE: usize = 0x100;
 pub const SAMPLERATE: usize = 48_000;
+
+/// The step that index `n` refers to, for a list of `len` (which must not be 0). Rounds down, and
+/// wraps at both ends so -1 is the last step (a NaN reads as 0).
+pub fn wrap_index(n: f32, len: usize) -> usize {
+    (n.floor() as i64).rem_euclid(len as i64) as usize
+}
 
 /// Nodes that show what the audio side is doing poll at this rate, since the audio thread
 /// can't wake egui itself.

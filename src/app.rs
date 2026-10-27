@@ -9,7 +9,7 @@ use egui::{
 
 use crate::nodes::{*, oscillators::*, adsr::AdsrNode, graph::AudioGraphMessage, output::OutputNode,
 math::MathNode, metronome::MetronomeNode, sequencer::SequencerNode, noise::NoiseNode,
-phasor::PhaseBender, delay::DelayNode, reverb::ReverbNode, rhythm::RhythmNode, pulsewidth::PulsewidthNode, interpolator::InterpolatorNode, filter::FilterNode};
+phasor::PhaseBender, delay::DelayNode, reverb::ReverbNode, rhythm::RhythmNode, pulsewidth::PulsewidthNode, count::CountNode, mix::MixNode, interpolator::InterpolatorNode, filter::FilterNode};
 
 enum Mode {
     Normal,
@@ -471,6 +471,11 @@ impl eframe::App for Canvas {
                         self.add_node(Box::new(new_node), Box::new(node_handler), None);
                         ui.close();
                     }
+                    if ui.button("mix").clicked() {
+                        let (new_node, node_handler) = MixNode::new();
+                        self.add_node(Box::new(new_node), Box::new(node_handler), None);
+                        ui.close();
+                    }
                 });
                 ui.menu_button("controller", |ui| {
                     ui.set_width(100.0); // To make sure we wrap long text
@@ -502,6 +507,11 @@ impl eframe::App for Canvas {
                     if ui.button("pulsewidth").clicked() {
                         let (new_pulsewidth, new_pulsewidth_handler) = PulsewidthNode::new();
                         self.add_node(Box::new(new_pulsewidth), Box::new(new_pulsewidth_handler), None);
+                        ui.close();
+                    }
+                    if ui.button("count").clicked() {
+                        let (new_count, new_count_handler) = CountNode::new();
+                        self.add_node(Box::new(new_count), Box::new(new_count_handler), None);
                         ui.close();
                     }
                 });
